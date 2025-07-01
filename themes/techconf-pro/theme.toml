@@ -1,0 +1,47 @@
+[theme]
+name = "TechConf Pro"
+version = "1.0.0"
+author = "slicli Team"
+description = "Professional technical conference theme optimized for developer presentations and code-heavy content"
+category = "technical"
+premium = false
+price = 0.00
+currency = "USD"
+license = "MIT License"
+
+[metadata]
+tags = ["technical", "conference", "developer", "code", "programming", "dark", "syntax"]
+target_audience = ["developers", "engineers", "technical_speakers", "conference_presenters"]
+features = [
+  "Syntax-highlighted code blocks",
+  "Terminal emulation styles", 
+  "Dark mode optimized",
+  "Live code execution display",
+  "Multiple code layout options",
+  "Conference projection optimized",
+  "High contrast for readability",
+  "Monospace font excellence"
+]
+
+[assets]
+css = ["assets/css/main.css", "assets/css/syntax.css", "assets/css/terminal.css"]
+js = ["assets/js/techconf.js", "assets/js/code-highlighter.js"]
+fonts = ["assets/fonts/fira-code.woff2", "assets/fonts/jetbrains-mono.woff2"]
+
+[templates]
+presentation = "templates/presentation.html"
+slide = "templates/slide.html"
+code = "templates/code-slide.html"
+
+[code]
+highlight_syntax = true
+line_numbers = true
+terminal_style = true
+live_execution = true
+supported_languages = ["javascript", "typescript", "go", "python", "rust", "java", "c", "cpp", "bash", "sql", "json", "yaml", "docker", "markdown"]
+
+[display]
+projection_optimized = true
+high_contrast = true
+dark_mode = true
+font_size_large = true

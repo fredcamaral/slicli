@@ -1,0 +1,176 @@
+/* SliCLI Dark Theme - Additional Styles */
+
+/* Dark theme specific overrides */
+
+/* Code syntax highlighting for dark theme */
+.hljs {
+    background: var(--code-bg);
+    color: var(--code-text);
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-link {
+    color: #60a5fa;
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-name,
+.hljs-type,
+.hljs-attribute,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition,
+.hljs-variable,
+.hljs-template-tag,
+.hljs-template-variable {
+    color: #34d399;
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-deletion,
+.hljs-meta {
+    color: #64748b;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-title,
+.hljs-section,
+.hljs-doctag,
+.hljs-type,
+.hljs-name,
+.hljs-strong {
+    font-weight: 600;
+}
+
+.hljs-emphasis {
+    font-style: italic;
+}
+
+/* Enhanced navigation for dark theme */
+.nav-button {
+    background-color: var(--code-bg);
+    border-color: var(--primary-color);
+    backdrop-filter: blur(10px);
+    background-color: rgba(30, 41, 59, 0.8);
+}
+
+.nav-button:hover {
+    background-color: var(--primary-color);
+    box-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
+}
+
+/* Glowing progress bar */
+.progress-bar {
+    background-color: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+}
+
+.progress-fill {
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+    box-shadow: 0 0 10px rgba(96, 165, 250, 0.5);
+}
+
+/* Enhanced blockquotes */
+blockquote {
+    border-left-color: var(--primary-color);
+    background-color: rgba(96, 165, 250, 0.1);
+    padding: 1rem 1rem 1rem 2rem;
+    border-radius: 0.5rem;
+}
+
+/* Tables with dark styling */
+th {
+    background-color: var(--code-bg);
+    color: var(--heading-color);
+}
+
+tr:nth-child(even) td {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Links with glow effect */
+a {
+    position: relative;
+    text-decoration: none;
+    background-image: linear-gradient(var(--primary-color), var(--primary-color));
+    background-size: 0% 2px;
+    background-repeat: no-repeat;
+    background-position: left bottom;
+    transition: background-size 300ms ease;
+}
+
+a:hover {
+    background-size: 100% 2px;
+    text-shadow: 0 0 10px rgba(96, 165, 250, 0.5);
+}
+
+/* Card-like appearance for slides */
+.slide-content {
+    background-color: rgba(30, 41, 59, 0.3);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Slide numbers with subtle background */
+.slide-numbers {
+    background-color: rgba(30, 41, 59, 0.8);
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    backdrop-filter: blur(10px);
+}
+
+/* Enhanced images */
+img {
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Dark theme scrollbars */
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--code-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--secondary-color);
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+/* Selection colors */
+::selection {
+    background-color: var(--primary-color);
+    color: var(--background-color);
+}
+
+/* Focus styles */
+:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Gradient text for headings */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+    .slide-first h1 {
+        background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+}

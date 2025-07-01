@@ -1,0 +1,170 @@
+/* SliCLI Minimal Theme - Additional Styles */
+
+/* Override base styles for minimal aesthetic */
+
+/* Remove all borders and shadows */
+* {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Simplified typography */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 400;
+    letter-spacing: -0.02em;
+}
+
+h1 {
+    font-size: 3rem;
+    margin-bottom: 2rem;
+}
+
+h2 {
+    font-size: 2.2rem;
+    margin-bottom: 1.5rem;
+}
+
+h3 {
+    font-size: 1.6rem;
+    margin-bottom: 1.2rem;
+}
+
+p {
+    margin-bottom: 1.5rem;
+}
+
+/* Minimal links */
+a {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+}
+
+a:hover {
+    opacity: 1;
+    text-decoration-thickness: 2px;
+}
+
+/* Clean code blocks */
+pre {
+    background-color: var(--code-bg);
+    padding: 1.5rem;
+    border-radius: 0;
+    font-size: 0.85em;
+}
+
+code {
+    background-color: transparent;
+    padding: 0.1rem 0.3rem;
+    border-radius: 0;
+}
+
+/* Minimal blockquotes */
+blockquote {
+    border-left: 2px solid var(--text-color);
+    padding-left: 2rem;
+    margin: 2rem 0;
+    font-style: normal;
+}
+
+/* Hide navigation completely */
+.navigation {
+    display: none !important;
+}
+
+/* Minimal slide numbers */
+.slide-numbers {
+    font-family: var(--code-font);
+    font-size: 0.8rem;
+    bottom: 2rem;
+    right: 2rem;
+    color: var(--secondary-color);
+}
+
+/* Center all slide content by default */
+.slide-content {
+    text-align: center;
+}
+
+/* But allow left-aligned content with class */
+.slide-content.text-left,
+.slide-content .text-left {
+    text-align: left;
+}
+
+/* Minimal lists */
+ul, ol {
+    list-style: none;
+    padding-left: 0;
+    text-align: left;
+    max-width: 600px;
+    margin: 0 auto 1.5rem;
+}
+
+li {
+    margin-bottom: 0.8rem;
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+ul li:before {
+    content: "–";
+    position: absolute;
+    left: 0;
+}
+
+ol {
+    counter-reset: item;
+}
+
+ol li:before {
+    content: counter(item) ".";
+    counter-increment: item;
+    position: absolute;
+    left: 0;
+}
+
+/* Minimal tables */
+table {
+    margin: 2rem auto;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 0.8rem 1.5rem;
+    text-align: left;
+}
+
+th {
+    border-bottom: 1px solid var(--text-color);
+    font-weight: 400;
+}
+
+/* Vertical rhythm */
+.slide-content > * + * {
+    margin-top: 1.5rem;
+}
+
+/* Special first slide styling */
+.slide-first .slide-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+}
+
+.slide-first h1 {
+    font-size: 4rem;
+    margin-bottom: 3rem;
+}
+
+/* Print styles - even more minimal */
+@media print {
+    body {
+        font-size: 12pt;
+    }
+    
+    .slide-content {
+        padding: 2cm;
+    }
+}

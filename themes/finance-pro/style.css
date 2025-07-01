@@ -1,0 +1,307 @@
+/* Finance Pro Theme - Professional financial presentation design */
+
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Slab:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap');
+
+:root {
+  --primary: #1e3a8a;
+  --secondary: #3730a3;
+  --accent: #059669;
+  --background: #ffffff;
+  --surface: #f8fafc;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  
+  --font-primary: 'Roboto Slab', serif;
+  --font-secondary: 'Roboto', sans-serif;
+  --font-mono: 'Roboto Mono', monospace;
+}
+
+.presentation {
+  font-family: var(--font-secondary);
+  background: var(--background);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.slide {
+  min-height: 100vh;
+  padding: 60px 80px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--background);
+}
+
+.slide::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+}
+
+/* Financial data cards */
+.financial-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 25px;
+  margin: 30px 0;
+}
+
+.metric-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 25px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(30, 58, 138, 0.15);
+}
+
+.metric-value {
+  font-family: var(--font-primary);
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.metric-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.metric-change {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.metric-change.positive {
+  color: var(--success);
+}
+
+.metric-change.negative {
+  color: var(--error);
+}
+
+.metric-change::before {
+  margin-right: 4px;
+}
+
+.metric-change.positive::before {
+  content: '↗';
+}
+
+.metric-change.negative::before {
+  content: '↘';
+}
+
+/* Financial tables */
+.financial-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 30px 0;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.financial-table th {
+  background: var(--primary);
+  color: white;
+  padding: 15px 20px;
+  font-weight: 600;
+  text-align: left;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.financial-table td {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+}
+
+.financial-table tbody tr:nth-child(even) {
+  background: var(--surface);
+}
+
+.financial-table tbody tr:hover {
+  background: #eff6ff;
+}
+
+/* Currency formatting */
+.currency {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.currency.positive {
+  color: var(--success);
+}
+
+.currency.negative {
+  color: var(--error);
+}
+
+/* Investment portfolio */
+.portfolio-item {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 15px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.portfolio-name {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.portfolio-symbol {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.portfolio-value {
+  text-align: right;
+}
+
+.portfolio-price {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Risk indicators */
+.risk-low {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-left: 4px solid var(--success);
+}
+
+.risk-medium {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-left: 4px solid var(--warning);
+}
+
+.risk-high {
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+  border-left: 4px solid var(--error);
+}
+
+/* Chart containers */
+.chart-container {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.chart-title {
+  font-family: var(--font-primary);
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* Financial highlights */
+.highlight-box {
+  background: linear-gradient(135deg, var(--surface) 0%, #e0f2fe 100%);
+  border: 2px solid var(--primary);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+  text-align: center;
+}
+
+.highlight-title {
+  font-family: var(--font-primary);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.highlight-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+/* Typography */
+.slide h1 {
+  font-family: var(--font-primary);
+  font-size: 2.8rem;
+  color: var(--primary);
+  margin: 0 0 35px 0;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 15px;
+}
+
+.slide h2 {
+  font-family: var(--font-primary);
+  font-size: 2.2rem;
+  color: var(--secondary);
+  margin: 30px 0 20px 0;
+}
+
+/* Performance indicators */
+.performance-up {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.performance-down {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.performance-neutral {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Responsive design */
+@media (max-width: 1024px) {
+  .slide { padding: 50px; }
+  .financial-metrics { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; }
+  .portfolio-item { flex-direction: column; text-align: center; gap: 10px; }
+}
+
+@media (max-width: 768px) {
+  .slide { padding: 30px; }
+  .financial-metrics { grid-template-columns: 1fr 1fr; gap: 15px; }
+  .financial-table { font-size: 0.8rem; }
+  .financial-table th, .financial-table td { padding: 10px 12px; }
+}

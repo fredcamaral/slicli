@@ -1,0 +1,26 @@
+[theme]
+name = "Education Plus"
+version = "1.0.0"
+author = "slicli Community"
+description = "Engaging educational theme for teachers, trainers, and educational content with interactive elements"
+category = "educational"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["education", "teaching", "learning", "interactive", "classroom"]
+premium = false
+price = 0.00
+featured = true
+
+[colors]
+primary = "#7c3aed"          # Purple
+secondary = "#8b5cf6"        # Light purple
+accent = "#10b981"           # Green accent
+background = "#ffffff"       # Clean white
+surface = "#f3f4f6"          # Light gray
+text = "#374151"            # Dark gray
+text_muted = "#6b7280"       # Medium gray
+border = "#d1d5db"           # Light border
+success = "#059669"          # Success green
+warning = "#d97706"          # Warning orange
+error = "#dc2626"            # Error red

@@ -1,0 +1,67 @@
+[theme]
+name = "Academic Research"
+version = "1.0.0"
+author = "slicli Community"
+description = "Professional academic theme for research presentations, conferences, and scholarly content with citation support"
+category = "educational"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["academic", "research", "scholarly", "conference", "citation"]
+premium = false
+price = 0.00
+featured = true
+
+[layout]
+default = "academic"
+title_slide = "academic-title"
+section_slide = "academic-section"
+content_slide = "academic-content"
+citation_slide = "academic-citation"
+reference_slide = "academic-reference"
+
+[typography]
+primary_font = "Crimson Text"
+secondary_font = "Source Sans Pro"
+mono_font = "Source Code Pro"
+base_size = "24px"
+title_scale = 2.4
+subtitle_scale = 1.7
+
+[colors]
+primary = "#2c3e50"          # Dark blue-gray
+secondary = "#34495e"        # Medium blue-gray
+accent = "#3498db"           # Academic blue
+background = "#ffffff"       # Clean white
+surface = "#f8f9fa"          # Light gray
+text = "#2c3e50"            # Dark text
+text_muted = "#7f8c8d"       # Muted gray
+border = "#bdc3c7"           # Light border
+success = "#27ae60"          # Green
+warning = "#f39c12"          # Orange
+error = "#e74c3c"            # Red
+
+[citation]
+style = "apa"                # APA, MLA, Chicago, IEEE
+format = "footnote"          # footnote, inline, endnote
+numbering = "numeric"        # numeric, author-year
+
+[assets]
+logo = "assets/university-logo.svg"
+watermark = "assets/watermark.png"
+icons = "assets/icons/"
+
+[features]
+animations = true
+transitions = "fade"
+navigation = true
+progress_bar = true
+slide_numbers = true
+speaker_notes = true
+export_pdf = true
+export_png = true
+responsive = true
+dark_mode = false
+citations = true
+references = true
+footnotes = true

@@ -1,0 +1,11 @@
+<div class="slide{{if .IsFirstSlide}} slide-first{{end}}{{if .IsLastSlide}} slide-last{{end}}" data-slide="{{.SlideNumber}}">
+    <div class="slide-content">
+        {{.Slide.HTML | safeHTML}}
+    </div>
+    
+    {{if and .ThemeConfig.Features.speaker-notes .Slide.Notes}}
+    <div class="speaker-notes" hidden>
+        {{.Slide.Notes}}
+    </div>
+    {{end}}
+</div>

@@ -1,0 +1,16 @@
+<div class="notes-container" data-slide="{{.SlideNumber}}">
+    <h3 class="notes-heading">Speaker Notes - Slide {{.SlideNumber}}</h3>
+    <div class="notes-content">
+        {{if .Notes}}
+            {{.Notes}}
+        {{else}}
+            <p class="notes-empty">No speaker notes for this slide.</p>
+        {{end}}
+    </div>
+    <div class="notes-slide-preview">
+        <h4>Slide Content:</h4>
+        <div class="notes-slide-content">
+            {{.Slide.Content}}
+        </div>
+    </div>
+</div>

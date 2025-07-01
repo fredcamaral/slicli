@@ -1,0 +1,222 @@
+/* Layout - Default Theme */
+
+/* Presentation container */
+.presentation-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Slides wrapper */
+.slides-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Individual slide */
+.slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: var(--slide-padding);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-speed) var(--transition-easing),
+                visibility var(--transition-speed) var(--transition-easing);
+}
+
+/* Active slide */
+.slide.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Slide content wrapper */
+.slide-content {
+    width: 100%;
+    max-width: var(--slide-max-width);
+    margin: 0 auto;
+}
+
+/* Center slide content */
+.slide.center .slide-content {
+    text-align: center;
+}
+
+/* Title slide */
+.slide.title {
+    background: linear-gradient(135deg, var(--background-color) 0%, var(--background-secondary) 100%);
+}
+
+.slide.title h1 {
+    font-size: var(--font-size-5xl);
+    margin-bottom: var(--space-2xl);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Two column layout */
+.columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2xl);
+    align-items: start;
+}
+
+.columns.thirds {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+/* Responsive columns */
+@media (max-width: 768px) {
+    .columns,
+    .columns.thirds {
+        grid-template-columns: 1fr;
+        gap: var(--space-xl);
+    }
+}
+
+/* Content blocks */
+.content-block {
+    margin-bottom: var(--space-xl);
+}
+
+/* Image handling */
+.slide img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    margin: var(--space-xl) auto;
+}
+
+.slide img.no-shadow {
+    box-shadow: none;
+}
+
+.slide img.full-width {
+    width: 100%;
+}
+
+/* Video handling */
+.slide video {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Flexbox utilities */
+.flex {
+    display: flex;
+}
+
+.flex-col {
+    flex-direction: column;
+}
+
+.justify-center {
+    justify-content: center;
+}
+
+.justify-between {
+    justify-content: space-between;
+}
+
+.items-center {
+    align-items: center;
+}
+
+.gap-sm {
+    gap: var(--space-sm);
+}
+
+.gap-md {
+    gap: var(--space-md);
+}
+
+.gap-lg {
+    gap: var(--space-lg);
+}
+
+/* Grid utilities */
+.grid {
+    display: grid;
+}
+
+.grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+/* Spacing utilities */
+.mt-sm { margin-top: var(--space-sm); }
+.mt-md { margin-top: var(--space-md); }
+.mt-lg { margin-top: var(--space-lg); }
+.mt-xl { margin-top: var(--space-xl); }
+
+.mb-sm { margin-bottom: var(--space-sm); }
+.mb-md { margin-bottom: var(--space-md); }
+.mb-lg { margin-bottom: var(--space-lg); }
+.mb-xl { margin-bottom: var(--space-xl); }
+
+.p-sm { padding: var(--space-sm); }
+.p-md { padding: var(--space-md); }
+.p-lg { padding: var(--space-lg); }
+.p-xl { padding: var(--space-xl); }
+
+/* Text alignment */
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+/* Visibility */
+.hidden {
+    display: none !important;
+}
+
+.invisible {
+    visibility: hidden;
+}
+
+/* Fragment animations */
+.fragment {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-speed) var(--transition-easing),
+                visibility var(--transition-speed) var(--transition-easing);
+}
+
+.fragment.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.fragment.fade-up {
+    transform: translateY(20px);
+    transition: opacity var(--transition-speed) var(--transition-easing),
+                visibility var(--transition-speed) var(--transition-easing),
+                transform var(--transition-speed) var(--transition-easing);
+}
+
+.fragment.fade-up.visible {
+    transform: translateY(0);
+}

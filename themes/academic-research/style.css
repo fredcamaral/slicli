@@ -1,0 +1,671 @@
+/* Academic Research Theme - Professional scholarly presentation design */
+
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Source+Sans+Pro:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=Source+Code+Pro:wght@400;500;600&display=swap');
+
+:root {
+  --primary: #2c3e50;
+  --secondary: #34495e;
+  --accent: #3498db;
+  --background: #ffffff;
+  --surface: #f8f9fa;
+  --text: #2c3e50;
+  --text-muted: #7f8c8d;
+  --border: #bdc3c7;
+  --success: #27ae60;
+  --warning: #f39c12;
+  --error: #e74c3c;
+  
+  --font-primary: 'Crimson Text', serif;
+  --font-secondary: 'Source Sans Pro', sans-serif;
+  --font-mono: 'Source Code Pro', monospace;
+  
+  --shadow-soft: 0 2px 10px rgba(44, 62, 80, 0.1);
+  --shadow-medium: 0 4px 20px rgba(44, 62, 80, 0.15);
+  --shadow-strong: 0 8px 30px rgba(44, 62, 80, 0.2);
+}
+
+/* Base Layout */
+.presentation {
+  font-family: var(--font-secondary);
+  background: var(--background);
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.slide {
+  min-height: 100vh;
+  padding: 60px 80px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--background);
+  border: 1px solid var(--border);
+}
+
+.slide::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+}
+
+/* Academic Title Slide */
+.slide.academic-title {
+  justify-content: center;
+  text-align: center;
+  background: var(--surface);
+  position: relative;
+}
+
+.academic-title h1 {
+  font-family: var(--font-primary);
+  font-size: 3.2rem;
+  font-weight: 600;
+  margin: 0 0 30px 0;
+  color: var(--primary);
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.academic-title .subtitle {
+  font-family: var(--font-primary);
+  font-size: 1.6rem;
+  font-weight: 400;
+  color: var(--secondary);
+  margin-bottom: 40px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.academic-title .authors {
+  font-size: 1.3rem;
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+.academic-title .affiliation {
+  font-size: 1.1rem;
+  font-weight: 300;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.academic-title .conference {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-top: 30px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.academic-title .date {
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-top: 10px;
+}
+
+/* Section Headers */
+.slide.academic-section {
+  justify-content: center;
+  text-align: center;
+  background: linear-gradient(135deg, var(--surface) 0%, #ecf0f1 100%);
+  border-left: 8px solid var(--accent);
+}
+
+.academic-section h1 {
+  font-family: var(--font-primary);
+  font-size: 3rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.academic-section .section-number {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 25px;
+  display: block;
+}
+
+/* Content Slides */
+.slide.academic-content h1 {
+  font-family: var(--font-primary);
+  font-size: 2.6rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 0 0 35px 0;
+  padding-bottom: 15px;
+  border-bottom: 2px solid var(--accent);
+  line-height: 1.3;
+}
+
+.slide.academic-content h2 {
+  font-family: var(--font-primary);
+  font-size: 2.1rem;
+  font-weight: 600;
+  color: var(--secondary);
+  margin: 35px 0 25px 0;
+  line-height: 1.3;
+}
+
+.slide.academic-content h3 {
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 30px 0 20px 0;
+  line-height: 1.4;
+}
+
+/* Typography */
+p {
+  font-size: 1.25rem;
+  line-height: 1.8;
+  margin: 0 0 25px 0;
+  color: var(--text);
+  text-align: justify;
+  hyphens: auto;
+}
+
+.lead {
+  font-family: var(--font-primary);
+  font-size: 1.4rem;
+  font-weight: 400;
+  color: var(--secondary);
+  line-height: 1.7;
+  font-style: italic;
+}
+
+.abstract {
+  background: var(--surface);
+  padding: 30px;
+  border-radius: 8px;
+  border-left: 4px solid var(--accent);
+  font-size: 1.1rem;
+  line-height: 1.7;
+  margin: 30px 0;
+  box-shadow: var(--shadow-soft);
+}
+
+.abstract h3 {
+  margin-top: 0;
+  color: var(--accent);
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Lists */
+ul, ol {
+  font-size: 1.25rem;
+  line-height: 1.8;
+  margin: 0 0 25px 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+li {
+  margin: 15px 0;
+  padding-left: 40px;
+  position: relative;
+  text-align: justify;
+}
+
+ul li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--accent);
+  font-size: 1.5rem;
+  font-weight: bold;
+  line-height: 1.25;
+}
+
+ol {
+  counter-reset: item;
+}
+
+ol li::before {
+  content: counter(item) '.';
+  counter-increment: item;
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+/* Research methodology lists */
+.methodology li::before {
+  content: counter(item, upper-roman) '.';
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Code Blocks */
+pre {
+  background: #f8f9fa;
+  color: var(--text);
+  padding: 25px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  margin: 25px 0;
+  box-shadow: var(--shadow-soft);
+}
+
+code {
+  font-family: var(--font-mono);
+  background: var(--surface);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: var(--secondary);
+  border: 1px solid var(--border);
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 30px 0;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-medium);
+  border: 1px solid var(--border);
+}
+
+th, td {
+  padding: 15px 20px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+tbody tr:nth-child(even) {
+  background: var(--surface);
+}
+
+tbody tr:hover {
+  background: #e8f4f8;
+}
+
+.table-caption {
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 10px;
+  font-size: 1rem;
+}
+
+.table-note {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-top: 10px;
+  font-style: italic;
+}
+
+/* Blockquotes */
+blockquote {
+  background: var(--surface);
+  border-left: 4px solid var(--accent);
+  padding: 25px 30px;
+  margin: 30px 0;
+  font-family: var(--font-primary);
+  font-size: 1.3rem;
+  line-height: 1.7;
+  color: var(--secondary);
+  border-radius: 0 8px 8px 0;
+  box-shadow: var(--shadow-soft);
+  font-style: italic;
+}
+
+blockquote cite {
+  display: block;
+  margin-top: 20px;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 1rem;
+  font-family: var(--font-secondary);
+}
+
+blockquote cite::before {
+  content: '— ';
+}
+
+/* Citations and References */
+.citation {
+  font-size: 0.9rem;
+  color: var(--accent);
+  vertical-align: super;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.citation:hover {
+  text-decoration: underline;
+}
+
+.footnote {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+  margin-top: 30px;
+}
+
+.reference-list {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.reference-list li {
+  margin: 20px 0;
+  padding-left: 30px;
+  text-indent: -30px;
+}
+
+.reference-list li::before {
+  content: none;
+}
+
+/* Figures and Images */
+figure {
+  margin: 30px 0;
+  text-align: center;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: var(--shadow-medium);
+  border: 1px solid var(--border);
+}
+
+figcaption {
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-top: 15px;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+figcaption strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Mathematical expressions */
+.math {
+  font-family: 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 1.1em;
+}
+
+.equation {
+  background: var(--surface);
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  margin: 25px 0;
+  border: 1px solid var(--border);
+  font-family: 'Times New Roman', serif;
+  font-size: 1.2rem;
+}
+
+.equation-number {
+  float: right;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* Research highlights */
+.hypothesis {
+  background: linear-gradient(135deg, #e8f4f8 0%, #d5e8f0 100%);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  padding: 25px;
+  margin: 25px 0;
+  box-shadow: var(--shadow-soft);
+}
+
+.hypothesis h4 {
+  color: var(--accent);
+  margin-top: 0;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1rem;
+}
+
+.finding {
+  background: linear-gradient(135deg, #f0f8e8 0%, #e5f0d5 100%);
+  border: 2px solid var(--success);
+  border-radius: 8px;
+  padding: 25px;
+  margin: 25px 0;
+  box-shadow: var(--shadow-soft);
+}
+
+.finding h4 {
+  color: var(--success);
+  margin-top: 0;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1rem;
+}
+
+/* Layout Utilities */
+.two-column {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 50px;
+  align-items: start;
+}
+
+.three-column {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 35px;
+  align-items: start;
+}
+
+.centered {
+  text-align: center;
+}
+
+.justified {
+  text-align: justify;
+  hyphens: auto;
+}
+
+.highlight {
+  background: linear-gradient(120deg, transparent 0%, rgba(52, 152, 219, 0.2) 0%, rgba(52, 152, 219, 0.2) 100%, transparent 100%);
+  background-size: 0% 100%;
+  background-repeat: no-repeat;
+  animation: highlight 1s ease-out 0.5s forwards;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+@keyframes highlight {
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+/* Navigation */
+.slide-number {
+  position: absolute;
+  bottom: 25px;
+  right: 40px;
+  font-size: 1rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+  z-index: 1000;
+  transition: width 0.3s ease;
+}
+
+/* University branding */
+.university-logo {
+  position: absolute;
+  top: 30px;
+  right: 40px;
+  max-height: 60px;
+  opacity: 0.8;
+}
+
+.watermark {
+  position: absolute;
+  bottom: 20px;
+  left: 40px;
+  opacity: 0.3;
+  max-height: 40px;
+}
+
+/* Animations */
+.slide-enter {
+  animation: slideIn 0.8s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Academic status indicators */
+.peer-reviewed::after {
+  content: " (Peer Reviewed)";
+  color: var(--success);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
+.under-review::after {
+  content: " (Under Review)";
+  color: var(--warning);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
+.preprint::after {
+  content: " (Preprint)";
+  color: var(--text-muted);
+  font-size: 0.8em;
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .slide {
+    padding: 50px;
+  }
+  
+  .academic-title h1 {
+    font-size: 2.6rem;
+  }
+  
+  .academic-content h1 {
+    font-size: 2.2rem;
+  }
+  
+  .two-column,
+  .three-column {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  
+  p, li {
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .slide {
+    padding: 40px;
+  }
+  
+  .academic-title h1 {
+    font-size: 2.2rem;
+  }
+  
+  p, li {
+    font-size: 1rem;
+    text-align: left;
+  }
+  
+  table {
+    font-size: 0.9rem;
+  }
+  
+  th, td {
+    padding: 10px 15px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .slide {
+    page-break-after: always;
+    min-height: auto;
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+  
+  .slide::before {
+    display: none;
+  }
+  
+  .progress-bar,
+  .slide-number {
+    display: none;
+  }
+  
+  .citation {
+    color: #000;
+  }
+  
+  blockquote {
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+}

@@ -1,0 +1,389 @@
+/* Scientific Pro Theme - Professional research presentation design */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Serif:wght@400;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --primary: #0f172a;
+  --secondary: #1e293b;
+  --accent: #0ea5e9;
+  --background: #ffffff;
+  --surface: #f1f5f9;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --border: #cbd5e1;
+  --success: #059669;
+  --warning: #ea580c;
+  --error: #dc2626;
+  
+  --font-primary: 'IBM Plex Serif', serif;
+  --font-secondary: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+.presentation {
+  font-family: var(--font-secondary);
+  background: var(--background);
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.slide {
+  min-height: 100vh;
+  padding: 60px 80px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--background);
+}
+
+.slide::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+}
+
+/* Scientific data presentation */
+.experiment-data {
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+}
+
+.data-table th {
+  background: var(--primary);
+  color: white;
+  padding: 12px 15px;
+  font-weight: 600;
+  text-align: left;
+  font-size: 0.9rem;
+  font-family: var(--font-mono);
+}
+
+.data-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: var(--surface);
+}
+
+/* Research methodology */
+.methodology {
+  background: linear-gradient(135deg, var(--surface) 0%, #e2e8f0 100%);
+  border-left: 5px solid var(--accent);
+  padding: 25px;
+  margin: 25px 0;
+  border-radius: 0 12px 12px 0;
+}
+
+.methodology-title {
+  font-family: var(--font-primary);
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.methodology ol {
+  counter-reset: method;
+}
+
+.methodology li::before {
+  content: counter(method, decimal) '.';
+  counter-increment: method;
+  font-weight: 600;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+/* Hypothesis and findings */
+.hypothesis {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+  position: relative;
+}
+
+.hypothesis::before {
+  content: 'H₀';
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+
+.hypothesis-title {
+  font-family: var(--font-primary);
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1rem;
+}
+
+.finding {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  border: 2px solid var(--success);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+  position: relative;
+}
+
+.finding::before {
+  content: '✓';
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  font-weight: 700;
+  color: var(--success);
+  font-size: 1.5rem;
+}
+
+/* Statistical results */
+.statistical-result {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.p-value {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 10px;
+}
+
+.p-value.significant {
+  color: var(--success);
+}
+
+.p-value.not-significant {
+  color: var(--error);
+}
+
+.statistical-label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+/* Research equipment/materials */
+.equipment-list {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+}
+
+.equipment-title {
+  font-family: var(--font-primary);
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1.1rem;
+}
+
+.equipment-list ul {
+  columns: 2;
+  column-gap: 30px;
+}
+
+.equipment-list li::before {
+  content: '🔬';
+  margin-right: 8px;
+}
+
+/* Chemical formulas and equations */
+.formula {
+  background: white;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  text-align: center;
+  font-family: 'Times New Roman', serif;
+  font-size: 1.3rem;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
+}
+
+.chemical-formula {
+  font-family: 'Times New Roman', serif;
+  font-size: 1.1rem;
+  background: var(--surface);
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  display: inline-block;
+}
+
+/* Lab safety warnings */
+.safety-warning {
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+  border: 2px solid var(--error);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+  position: relative;
+}
+
+.safety-warning::before {
+  content: '⚠️';
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  font-size: 1.5rem;
+}
+
+.safety-title {
+  font-weight: 700;
+  color: var(--error);
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1rem;
+}
+
+/* Research timeline */
+.research-timeline {
+  position: relative;
+  margin: 30px 0;
+}
+
+.research-timeline::before {
+  content: '';
+  position: absolute;
+  left: 30px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+}
+
+.timeline-item {
+  position: relative;
+  margin: 30px 0;
+  padding-left: 80px;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 21px;
+  top: 5px;
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  border: 3px solid white;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.timeline-date {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 0.9rem;
+  margin-bottom: 5px;
+}
+
+/* Citations and references */
+.citation-box {
+  background: var(--surface);
+  border-left: 4px solid var(--secondary);
+  padding: 20px;
+  margin: 20px 0;
+  border-radius: 0 8px 8px 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.reference-number {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  vertical-align: super;
+}
+
+/* Typography */
+.slide h1 {
+  font-family: var(--font-primary);
+  font-size: 2.8rem;
+  color: var(--primary);
+  margin: 0 0 35px 0;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 15px;
+  line-height: 1.3;
+}
+
+.slide h2 {
+  font-family: var(--font-primary);
+  font-size: 2.2rem;
+  color: var(--secondary);
+  margin: 30px 0 20px 0;
+  line-height: 1.3;
+}
+
+.slide h3 {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 25px 0 15px 0;
+  line-height: 1.4;
+}
+
+/* Responsive design */
+@media (max-width: 1024px) {
+  .slide { padding: 50px; }
+  .equipment-list ul { columns: 1; }
+  .data-table { font-size: 0.8rem; }
+  .data-table th, .data-table td { padding: 10px 12px; }
+}
+
+@media (max-width: 768px) {
+  .slide { padding: 30px; }
+  .slide h1 { font-size: 2.2rem; }
+  .timeline-item { padding-left: 60px; }
+  .formula { font-size: 1.1rem; padding: 15px; }
+}

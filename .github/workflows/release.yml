@@ -1,0 +1,216 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y chromium-browser
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        mkdir -p dist
+        make build
+        
+        # Create release directory
+        RELEASE_NAME="slicli-${GITHUB_REF#refs/tags/}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        mkdir -p "dist/${RELEASE_NAME}"
+        
+        # Copy binary (add .exe for Windows)
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          cp bin/slicli "dist/${RELEASE_NAME}/slicli.exe"
+        else
+          cp bin/slicli "dist/${RELEASE_NAME}/"
+        fi
+
+    - name: Build plugins
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        RELEASE_NAME="slicli-${GITHUB_REF#refs/tags/}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        
+        # Build plugins (shared objects are platform-specific)
+        if [ "${{ matrix.goos }}" != "windows" ]; then
+          make build-plugins
+          mkdir -p "dist/${RELEASE_NAME}/plugins"
+          cp plugins/*/*.so "dist/${RELEASE_NAME}/plugins/" 2>/dev/null || true
+          # Copy plugin build directories for code-exec
+          if [ -d "plugins/code-exec/build" ]; then
+            cp plugins/code-exec/build/*.so "dist/${RELEASE_NAME}/plugins/" 2>/dev/null || true
+          fi
+        fi
+
+    - name: Copy themes and docs
+      run: |
+        RELEASE_NAME="slicli-${GITHUB_REF#refs/tags/}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        
+        # Copy themes
+        cp -r themes "dist/${RELEASE_NAME}/"
+        
+        # Copy essential documentation
+        cp README.md "dist/${RELEASE_NAME}/"
+        cp LICENSE "dist/${RELEASE_NAME}/"
+        
+        # Copy example configurations
+        mkdir -p "dist/${RELEASE_NAME}/examples"
+        cp -r examples/simple-ppt "dist/${RELEASE_NAME}/examples/"
+        cp configs/default.toml "dist/${RELEASE_NAME}/examples/"
+
+    - name: Create installation script
+      run: |
+        RELEASE_NAME="slicli-${GITHUB_REF#refs/tags/}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        
+        cat > "dist/${RELEASE_NAME}/install.sh" << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "Installing slicli..."
+        
+        # Create directories
+        mkdir -p ~/.config/slicli
+        mkdir -p ~/.local/bin
+        
+        # Install binary
+        if [ -f "./slicli.exe" ]; then
+          cp slicli.exe ~/.local/bin/
+        else
+          cp slicli ~/.local/bin/
+          chmod +x ~/.local/bin/slicli
+        fi
+        
+        # Install themes and plugins
+        cp -r themes ~/.config/slicli/
+        if [ -d "./plugins" ]; then
+          cp -r plugins ~/.config/slicli/
+        fi
+        
+        # Copy default config
+        if [ -f "./examples/default.toml" ]; then
+          cp examples/default.toml ~/.config/slicli/config.toml
+        fi
+        
+        echo "Installation complete!"
+        echo "Add ~/.local/bin to your PATH if not already done:"
+        echo 'export PATH="$HOME/.local/bin:$PATH"'
+        echo ""
+        echo "Run 'slicli --help' to get started"
+        EOF
+        
+        chmod +x "dist/${RELEASE_NAME}/install.sh"
+
+    - name: Create Windows installation script
+      if: matrix.goos == 'windows'
+      run: |
+        RELEASE_NAME="slicli-${GITHUB_REF#refs/tags/}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        
+        cat > "dist/${RELEASE_NAME}/install.bat" << 'EOF'
+        @echo off
+        echo Installing slicli...
+        
+        REM Create directories
+        if not exist "%USERPROFILE%\.config\slicli" mkdir "%USERPROFILE%\.config\slicli"
+        if not exist "%USERPROFILE%\.local\bin" mkdir "%USERPROFILE%\.local\bin"
+        
+        REM Install binary
+        copy slicli.exe "%USERPROFILE%\.local\bin\"
+        
+        REM Install themes
+        xcopy /E /I themes "%USERPROFILE%\.config\slicli\themes"
+        
+        REM Copy default config
+        if exist "examples\default.toml" copy "examples\default.toml" "%USERPROFILE%\.config\slicli\config.toml"
+        
+        echo Installation complete!
+        echo Add %USERPROFILE%\.local\bin to your PATH
+        echo Run 'slicli --help' to get started
+        EOF
+
+    - name: Create archive
+      run: |
+        RELEASE_NAME="slicli-${GITHUB_REF#refs/tags/}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        cd dist
+        
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          zip -r "${RELEASE_NAME}.zip" "${RELEASE_NAME}"
+        else
+          tar -czf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}"
+        fi
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          dist/*.tar.gz
+          dist/*.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: fredcamaral/slicli
+        tags: |
+          type=ref,event=tag
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}

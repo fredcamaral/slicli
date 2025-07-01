@@ -1,0 +1,32 @@
+# Example SLICLI configuration with custom CORS origins
+# This shows how to configure CORS origins for the HTTP server
+
+[server]
+host = "localhost"
+port = 3000
+read_timeout = 30
+write_timeout = 30
+shutdown_timeout = 5
+
+# Configure CORS origins - list of allowed origins for cross-origin requests
+cors_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000", 
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "https://my-custom-domain.com",
+    "https://another-domain.dev"
+]
+
+[theme]
+name = "default"
+
+[browser]
+auto_open = true
+
+[watcher]
+interval_ms = 200
+debounce_ms = 500
+
+[plugins]
+enabled = true

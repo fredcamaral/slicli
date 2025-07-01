@@ -1,0 +1,26 @@
+[theme]
+name = "Creative Studio"
+version = "1.0.0"
+author = "slicli Community"
+description = "Bold creative theme for designers, artists, and creative professionals with vibrant colors and dynamic layouts"
+category = "creative"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["creative", "design", "artistic", "vibrant", "dynamic"]
+premium = false
+price = 0.00
+featured = true
+
+[colors]
+primary = "#ec4899"          # Pink
+secondary = "#f59e0b"        # Orange
+accent = "#8b5cf6"           # Purple
+background = "#ffffff"       # Clean white
+surface = "#fef3c7"          # Light yellow
+text = "#1f2937"            # Dark gray
+text_muted = "#6b7280"       # Medium gray
+border = "#e5e7eb"           # Light border
+success = "#10b981"          # Success green
+warning = "#f59e0b"          # Warning orange
+error = "#ef4444"            # Error red

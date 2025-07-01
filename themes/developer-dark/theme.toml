@@ -1,0 +1,69 @@
+[theme]
+name = "Developer Dark"
+version = "1.0.0"
+author = "slicli Community"
+description = "Dark theme optimized for developers with syntax highlighting, terminal aesthetics, and code-focused layouts"
+category = "technical"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["developer", "dark", "coding", "terminal", "syntax"]
+premium = false
+price = 0.00
+featured = true
+
+[layout]
+default = "developer"
+title_slide = "dev-title"
+section_slide = "dev-section"
+content_slide = "dev-content"
+code_slide = "dev-code"
+terminal_slide = "dev-terminal"
+
+[typography]
+primary_font = "JetBrains Mono"
+secondary_font = "Inter"
+mono_font = "Fira Code"
+base_size = "22px"
+title_scale = 2.2
+subtitle_scale = 1.6
+
+[colors]
+primary = "#61dafb"          # React blue
+secondary = "#bb86fc"        # Purple
+accent = "#03dac6"           # Teal
+background = "#121212"       # Dark background
+surface = "#1e1e1e"          # Dark surface
+text = "#ffffff"             # White text
+text_muted = "#a0a0a0"       # Muted gray
+border = "#333333"           # Dark border
+success = "#4caf50"          # Green
+warning = "#ff9800"          # Orange
+error = "#f44336"            # Red
+
+[syntax_highlighting]
+keyword = "#c792ea"          # Purple
+string = "#c3e88d"           # Green
+comment = "#546e7a"          # Gray
+function = "#82aaff"         # Blue
+variable = "#ffcb6b"         # Yellow
+operator = "#89ddff"         # Cyan
+
+[assets]
+logo = "assets/logo.svg"
+terminal_cursor = "assets/cursor.gif"
+icons = "assets/icons/"
+
+[features]
+animations = true
+transitions = "slide"
+navigation = true
+progress_bar = true
+slide_numbers = true
+speaker_notes = true
+export_pdf = true
+export_png = true
+responsive = true
+dark_mode = true
+syntax_highlighting = true
+terminal_mode = true

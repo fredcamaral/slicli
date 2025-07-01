@@ -1,0 +1,267 @@
+/* Education Plus Theme - Engaging educational presentation design */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700;800&family=Open+Sans:wght@300;400;600;700&family=Source+Code+Pro:wght@400;500&display=swap');
+
+:root {
+  --primary: #7c3aed;
+  --secondary: #8b5cf6;
+  --accent: #10b981;
+  --background: #ffffff;
+  --surface: #f3f4f6;
+  --text: #374151;
+  --text-muted: #6b7280;
+  --border: #d1d5db;
+  --success: #059669;
+  --warning: #d97706;
+  --error: #dc2626;
+  
+  --font-primary: 'Nunito', sans-serif;
+  --font-secondary: 'Open Sans', sans-serif;
+  --font-mono: 'Source Code Pro', monospace;
+}
+
+.presentation {
+  font-family: var(--font-secondary);
+  background: var(--background);
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.slide {
+  min-height: 100vh;
+  padding: 60px 80px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--background);
+}
+
+.slide::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+}
+
+/* Learning objectives */
+.learning-objectives {
+  background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+  border: 2px solid var(--primary);
+  border-radius: 15px;
+  padding: 30px;
+  margin: 25px 0;
+}
+
+.objectives-title {
+  font-family: var(--font-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 20px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.objectives-list li::before {
+  content: '🎯';
+  margin-right: 10px;
+}
+
+/* Interactive elements */
+.quiz-box {
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+}
+
+.quiz-question {
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 1.2rem;
+  margin-bottom: 15px;
+}
+
+.quiz-options {
+  list-style: none;
+  padding: 0;
+}
+
+.quiz-options li {
+  background: white;
+  margin: 10px 0;
+  padding: 12px 15px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.quiz-options li:hover {
+  background: #eff6ff;
+  border-color: var(--primary);
+}
+
+.quiz-options li::before {
+  content: counter(item, upper-alpha) ') ';
+  counter-increment: item;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* Activity boxes */
+.activity {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-left: 5px solid var(--accent);
+  border-radius: 0 12px 12px 0;
+  padding: 25px;
+  margin: 25px 0;
+}
+
+.activity-title {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.activity-title::before {
+  content: '⚡';
+  font-size: 1.2rem;
+}
+
+/* Key concepts */
+.key-concept {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 2px solid var(--warning);
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+  text-align: center;
+}
+
+.concept-term {
+  font-family: var(--font-primary);
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--warning);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.concept-definition {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #92400e;
+}
+
+/* Progress indicators */
+.lesson-progress {
+  background: var(--surface);
+  border-radius: 25px;
+  height: 8px;
+  margin: 20px 0;
+  overflow: hidden;
+}
+
+.progress-bar {
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+  height: 100%;
+  border-radius: 25px;
+  transition: width 0.8s ease;
+}
+
+/* Student work showcase */
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 25px;
+  margin: 30px 0;
+}
+
+.showcase-item {
+  background: white;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.showcase-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.15);
+  border-color: var(--primary);
+}
+
+/* Typography */
+.slide h1 {
+  font-family: var(--font-primary);
+  font-size: 3rem;
+  color: var(--primary);
+  margin: 0 0 35px 0;
+  text-align: center;
+  position: relative;
+}
+
+.slide h1::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* Interactive callouts */
+.tip {
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  padding: 20px;
+  margin: 20px 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.tip::before {
+  content: '💡 TIP: ';
+  font-weight: 700;
+  color: #3b82f6;
+}
+
+.warning-box {
+  background: #fef3c7;
+  border-left: 4px solid var(--warning);
+  padding: 20px;
+  margin: 20px 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.warning-box::before {
+  content: '⚠️ WARNING: ';
+  font-weight: 700;
+  color: var(--warning);
+}
+
+/* Responsive design */
+@media (max-width: 1024px) {
+  .slide { padding: 50px; }
+  .showcase-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+}
+
+@media (max-width: 768px) {
+  .slide { padding: 30px; }
+  .slide h1 { font-size: 2.2rem; }
+  .showcase-grid { grid-template-columns: 1fr; }
+}

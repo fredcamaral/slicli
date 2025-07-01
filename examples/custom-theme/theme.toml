@@ -1,0 +1,32 @@
+# Example Custom Theme
+name = "corporate"
+display_name = "Corporate"
+description = "Professional corporate theme with brand colors"
+author = "Example Corp"
+version = "1.0.0"
+license = "MIT"
+
+[metadata]
+tags = ["corporate", "professional", "business"]
+homepage = "https://example.com"
+
+[assets]
+styles = ["assets/css/main.css"]
+
+[variables]
+# Corporate brand colors
+primary-color = "#003366"
+primary-hover = "#002244"
+accent-color = "#ff6600"
+background-color = "#ffffff"
+text-color = "#333333"
+heading-color = "#003366"
+
+# Professional typography
+font-family-body = "'IBM Plex Sans', -apple-system, sans-serif"
+font-family-heading = "'IBM Plex Serif', Georgia, serif"
+font-size-base = "18px"
+
+# Refined spacing
+slide-padding = "5rem"
+slide-max-width = "1000px"

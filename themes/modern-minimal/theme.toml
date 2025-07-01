@@ -1,0 +1,52 @@
+[theme]
+name = "Modern Minimal"
+version = "1.0.0"
+author = "slicli Community"
+description = "Ultra-clean minimal design with perfect typography, generous whitespace, and subtle animations"
+category = "minimal"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["minimal", "clean", "modern", "typography", "simple"]
+premium = false
+price = 0.00
+featured = true
+
+[layout]
+default = "minimal"
+title_slide = "minimal-title"
+section_slide = "minimal-section" 
+content_slide = "minimal-content"
+
+[typography]
+primary_font = "Inter"
+secondary_font = "Inter"
+mono_font = "JetBrains Mono"
+base_size = "24px"
+title_scale = 2.0
+subtitle_scale = 1.5
+
+[colors]
+primary = "#000000"          # Pure black
+secondary = "#333333"        # Dark gray
+accent = "#0066cc"           # Blue accent
+background = "#ffffff"       # Pure white
+surface = "#fafafa"          # Off-white
+text = "#000000"            # Black text
+text_muted = "#666666"       # Medium gray
+border = "#e0e0e0"           # Light gray
+success = "#00aa00"          # Green
+warning = "#ff8800"          # Orange
+error = "#cc0000"            # Red
+
+[features]
+animations = true
+transitions = "fade"
+navigation = true
+progress_bar = false
+slide_numbers = false
+speaker_notes = true
+export_pdf = true
+export_png = true
+responsive = true
+dark_mode = false

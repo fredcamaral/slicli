@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Presentation.Title}}</title>
+    
+    <!-- Base Theme CSS -->
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <!-- Minimal Theme CSS -->
+    <link rel="stylesheet" href="/assets/css/minimal.css">
+    
+    <!-- Theme Variables -->
+    <style>
+        :root {
+            {{range $key, $value := .ThemeConfig.Variables}}
+            --{{$key}}: {{$value}};
+            {{end}}
+        }
+    </style>
+</head>
+<body class="presentation theme-minimal">
+    <div id="app" class="presentation-container">
+        <!-- Slide Container -->
+        <div id="slides" class="slides-container">
+            <!-- Slides will be loaded here -->
+        </div>
+        
+        <!-- Minimal slide numbers -->
+        {{if .ThemeConfig.Features.slide-numbers}}
+        <div class="slide-numbers">
+            <span id="current-slide">1</span>/<span id="total-slides">{{.SlideCount}}</span>
+        </div>
+        {{end}}
+    </div>
+    
+    <!-- Presentation Metadata -->
+    <script>
+        window.SLICLI = {
+            presentation: {
+                title: {{.Presentation.Title | safeJS}},
+                author: {{.Presentation.Author | safeJS}},
+                slideCount: {{.SlideCount}},
+                theme: "minimal"
+            },
+            config: {
+                transitions: {
+                    type: {{.ThemeConfig.Transitions.Type | safeJS}},
+                    duration: {{.ThemeConfig.Transitions.Duration}},
+                    easing: {{.ThemeConfig.Transitions.Easing | safeJS}}
+                },
+                features: {
+                    {{range $key, $value := .ThemeConfig.Features}}
+                    "{{$key}}": {{$value}},
+                    {{end}}
+                }
+            }
+        };
+    </script>
+    
+    <!-- Theme JavaScript -->
+    <script src="/assets/js/slicli.js"></script>
+    <script src="/assets/js/theme.js"></script>
+</body>
+</html>

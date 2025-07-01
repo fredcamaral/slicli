@@ -1,0 +1,49 @@
+[theme]
+name = "Corporate Pro"
+version = "1.0.0"
+author = "slicli Team"
+description = "Professional corporate presentation theme with modern design and enterprise features"
+category = "corporate"
+premium = false
+price = 0.00
+currency = "USD"
+license = "MIT License"
+
+[metadata]
+tags = ["corporate", "professional", "business", "modern", "enterprise"]
+target_audience = ["business", "corporate", "consulting", "sales"]
+features = [
+  "Executive-ready design",
+  "Multiple slide layouts", 
+  "Corporate color schemes",
+  "Professional typography",
+  "Company branding support",
+  "High-contrast mode",
+  "Print optimization"
+]
+
+[assets]
+css = ["assets/css/main.css", "assets/css/corporate.css", "assets/css/layouts.css"]
+js = ["assets/js/corporate.js"]
+fonts = ["assets/fonts/corporate-font.woff2"]
+
+[templates]
+presentation = "templates/presentation.html"
+slide = "templates/slide.html"
+notes = "templates/notes.html"
+
+[branding]
+logo_position = "top-right"
+company_colors = true
+custom_header = true
+footer_branding = true
+
+[layouts]
+title_slide = true
+section_header = true
+two_column = true
+three_column = true
+image_focus = true
+quote = true
+timeline = true
+comparison = true

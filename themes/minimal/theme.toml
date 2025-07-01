@@ -1,0 +1,41 @@
+# Minimal Theme Configuration
+name = "minimal"
+display_name = "Minimal"
+description = "Clean, distraction-free theme with minimal styling"
+author = "slicli"
+version = "1.0.0"
+license = "MIT"
+
+[metadata]
+tags = ["minimal", "clean", "simple", "distraction-free"]
+homepage = "https://github.com/slicli/themes"
+preview = "preview.png"
+
+[assets]
+styles = ["assets/css/main.css"]
+scripts = []
+fonts = []
+
+[variables]
+# Minimalist color scheme
+primary-color = "#000000"
+background-color = "#ffffff"
+text-color = "#333333"
+heading-color = "#000000"
+link-color = "#0066cc"
+code-bg = "#f5f5f5"
+code-text = "#333333"
+
+# Typography
+font-family-body = "Georgia, 'Times New Roman', serif"
+font-family-heading = "system-ui, -apple-system, sans-serif"
+font-family-code = "Consolas, Monaco, 'Courier New', monospace"
+font-size-base = "18px"
+line-height-base = "1.8"
+
+# Layout
+slide-padding = "3rem"
+slide-max-width = "800px"
+
+# Minimal transitions
+transition-speed = "200ms"

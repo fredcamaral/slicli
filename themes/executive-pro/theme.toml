@@ -1,0 +1,58 @@
+[theme]
+name = "Executive Pro"
+version = "1.0.0"
+author = "slicli Community"
+description = "Premium executive theme for C-suite and board presentations with sophisticated typography and professional layouts"
+category = "corporate"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["executive", "corporate", "professional", "board", "leadership"]
+premium = false
+price = 0.00
+featured = true
+
+[layout]
+default = "executive"
+title_slide = "executive-title"
+section_slide = "executive-section"
+content_slide = "executive-content"
+closing_slide = "executive-closing"
+
+[typography]
+primary_font = "Playfair Display"
+secondary_font = "Source Sans Pro"
+mono_font = "JetBrains Mono"
+base_size = "24px"
+title_scale = 2.5
+subtitle_scale = 1.8
+
+[colors]
+primary = "#1a1a2e"        # Deep navy
+secondary = "#16213e"      # Rich blue
+accent = "#c9a96e"         # Gold accent
+background = "#ffffff"     # Clean white
+surface = "#f8f9fa"        # Light gray
+text = "#1a1a2e"          # Dark navy text
+text_muted = "#6c757d"     # Muted gray
+border = "#e9ecef"         # Light border
+success = "#28a745"        # Success green
+warning = "#ffc107"        # Warning amber
+error = "#dc3545"          # Error red
+
+[assets]
+logo = "assets/logo.svg"
+background_pattern = "assets/pattern.svg"
+icons = "assets/icons/"
+
+[features]
+animations = true
+transitions = "fade"
+navigation = true
+progress_bar = true
+slide_numbers = true
+speaker_notes = true
+export_pdf = true
+export_png = true
+responsive = true
+dark_mode = false

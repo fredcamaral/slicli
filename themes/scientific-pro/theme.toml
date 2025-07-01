@@ -1,0 +1,26 @@
+[theme]
+name = "Scientific Pro"
+version = "1.0.0"
+author = "slicli Community"
+description = "Professional scientific theme for research presentations, data visualization, and technical content"
+category = "technical"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["scientific", "research", "data", "technical", "laboratory"]
+premium = false
+price = 0.00
+featured = true
+
+[colors]
+primary = "#0f172a"          # Dark slate
+secondary = "#1e293b"        # Slate
+accent = "#0ea5e9"           # Sky blue
+background = "#ffffff"       # Clean white
+surface = "#f1f5f9"          # Light slate
+text = "#0f172a"            # Dark slate
+text_muted = "#64748b"       # Slate gray
+border = "#cbd5e1"           # Light border
+success = "#059669"          # Success green
+warning = "#ea580c"          # Warning orange
+error = "#dc2626"            # Error red

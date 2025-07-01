@@ -1,0 +1,48 @@
+# Dark Theme Configuration
+name = "dark"
+display_name = "Dark"
+description = "Modern dark theme optimized for low-light environments"
+author = "slicli"
+version = "1.0.0"
+license = "MIT"
+
+[metadata]
+tags = ["dark", "night", "modern", "low-light"]
+homepage = "https://github.com/slicli/themes"
+preview = "preview.png"
+
+[assets]
+styles = ["assets/css/main.css"]
+scripts = []
+fonts = []
+
+[variables]
+# Dark color scheme
+primary-color = "#60a5fa"
+primary-hover = "#3b82f6"
+secondary-color = "#94a3b8"
+accent-color = "#34d399"
+background-color = "#0f172a"
+background-secondary = "#1e293b"
+text-color = "#e2e8f0"
+text-secondary = "#94a3b8"
+heading-color = "#f1f5f9"
+link-color = "#60a5fa"
+code-bg = "#1e293b"
+code-text = "#e2e8f0"
+code-border = "#334155"
+border-color = "#334155"
+
+# Typography
+font-family-body = "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif"
+font-family-heading = "-apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif"
+font-family-code = "'Fira Code', 'SF Mono', Monaco, Consolas, monospace"
+font-size-base = "20px"
+line-height-base = "1.6"
+
+# Layout
+slide-padding = "4rem"
+slide-max-width = "1200px"
+
+# Transitions
+transition-speed = "300ms"

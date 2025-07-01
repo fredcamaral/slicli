@@ -1,0 +1,54 @@
+[theme]
+name = "Startup Pitch"
+version = "1.0.0"
+author = "slicli Community"
+description = "Dynamic startup theme for investor pitches, funding presentations, and entrepreneurial content with modern design"
+category = "corporate"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["startup", "pitch", "investor", "funding", "entrepreneurial"]
+premium = false
+price = 0.00
+featured = true
+
+[layout]
+default = "startup"
+title_slide = "startup-title"
+section_slide = "startup-section"
+content_slide = "startup-content"
+pitch_slide = "startup-pitch"
+metrics_slide = "startup-metrics"
+
+[typography]
+primary_font = "Poppins"
+secondary_font = "Inter"
+mono_font = "JetBrains Mono"
+base_size = "22px"
+title_scale = 2.8
+subtitle_scale = 1.8
+
+[colors]
+primary = "#6c5ce7"          # Vibrant purple
+secondary = "#a29bfe"        # Light purple
+accent = "#fd79a8"           # Pink accent
+background = "#ffffff"       # Clean white
+surface = "#f8f9fa"          # Light surface
+text = "#2d3436"            # Dark text
+text_muted = "#636e72"       # Muted gray
+border = "#ddd"              # Light border
+success = "#00b894"          # Success green
+warning = "#fdcb6e"          # Warning yellow
+error = "#e84393"            # Error pink
+
+[features]
+animations = true
+transitions = "zoom"
+navigation = true
+progress_bar = true
+slide_numbers = true
+speaker_notes = true
+export_pdf = true
+export_png = true
+responsive = true
+dark_mode = false

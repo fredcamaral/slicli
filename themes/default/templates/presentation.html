@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Presentation.Title}} - SliCLI</title>
+    
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="/assets/css/main.css">
+    
+    <!-- Theme Variables -->
+    <style>
+        :root {
+            {{range $key, $value := .ThemeConfig.Variables}}
+            --{{$key}}: {{$value}};
+            {{end}}
+        }
+    </style>
+</head>
+<body class="presentation theme-{{.Theme}}">
+    <div id="app" class="presentation-container">
+        <!-- Slide Container -->
+        <div id="slides" class="slides-container">
+            <!-- Slides will be loaded here -->
+        </div>
+        
+        <!-- Navigation -->
+        {{if .ThemeConfig.Features.navigation-arrows}}
+        <nav class="navigation">
+            <button id="prev-slide" class="nav-button nav-prev" aria-label="Previous slide">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M15 18l-6-6 6-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <button id="next-slide" class="nav-button nav-next" aria-label="Next slide">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M9 18l6-6-6-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </nav>
+        {{end}}
+        
+        <!-- Progress Bar -->
+        {{if .ThemeConfig.Features.progress-bar}}
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 0%"></div>
+        </div>
+        {{end}}
+        
+        <!-- Slide Numbers -->
+        {{if .ThemeConfig.Features.slide-numbers}}
+        <div class="slide-numbers">
+            <span id="current-slide">1</span> / <span id="total-slides">{{.SlideCount}}</span>
+        </div>
+        {{end}}
+    </div>
+    
+    <!-- Presentation Metadata -->
+    <script>
+        window.SLICLI = {
+            presentation: {
+                title: {{.Presentation.Title | safeJS}},
+                author: {{.Presentation.Author | safeJS}},
+                slideCount: {{.SlideCount}},
+                theme: {{.Theme | safeJS}}
+            },
+            config: {
+                transitions: {
+                    type: {{.ThemeConfig.Transitions.Type | safeJS}},
+                    duration: {{.ThemeConfig.Transitions.Duration}},
+                    easing: {{.ThemeConfig.Transitions.Easing | safeJS}}
+                },
+                features: {
+                    {{range $key, $value := .ThemeConfig.Features}}
+                    "{{$key}}": {{$value}},
+                    {{end}}
+                }
+            }
+        };
+    </script>
+    
+    <!-- Theme JavaScript -->
+    <script src="/assets/js/slicli.js"></script>
+    <script src="/assets/js/theme.js"></script>
+</body>
+</html>

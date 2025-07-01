@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presenter Mode - {{.Title}}</title>
+    
+    <!-- Presenter CSS -->
+    <link rel="stylesheet" href="/assets/css/presenter.css">
+    
+    <!-- Base styles for content -->
+    <style>
+        /* Ensure presenter mode takes full screen */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        /* Hide default content when presenter mode is active */
+        .presentation-content {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- The presenter interface will be dynamically created by presenter.js -->
+    
+    <!-- Hidden data for JavaScript -->
+    <script type="application/json" id="presenter-data">
+    {
+        "title": "{{.Title}}",
+        "author": "{{.Author}}",
+        "totalSlides": {{.TotalSlides}},
+        "currentSlide": 0,
+        "websocketUrl": "/ws?mode=presenter"
+    }
+    </script>
+    
+    <!-- Presenter JavaScript -->
+    <script src="/assets/js/presenter.js"></script>
+</body>
+</html>

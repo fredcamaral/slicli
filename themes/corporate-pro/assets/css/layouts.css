@@ -1,0 +1,356 @@
+/**
+ * Corporate Pro Theme - Layout Styles
+ * Professional slide layouts for business presentations
+ */
+
+/* Title Slide Layout */
+.slide.layout-title {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: linear-gradient(135deg, var(--corporate-primary) 0%, var(--corporate-secondary) 100%);
+  color: var(--corporate-white);
+}
+
+.slide.layout-title .slide-header,
+.slide.layout-title .slide-footer {
+  display: none;
+}
+
+.slide.layout-title h1 {
+  font-size: var(--corporate-text-6xl);
+  color: var(--corporate-white);
+  margin-bottom: var(--corporate-spacing-6);
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.slide.layout-title .subtitle {
+  font-size: var(--corporate-text-2xl);
+  color: var(--corporate-gray-200);
+  margin-bottom: var(--corporate-spacing-12);
+  font-weight: 300;
+}
+
+.slide.layout-title .author-info {
+  font-size: var(--corporate-text-lg);
+  color: var(--corporate-gray-300);
+  margin-top: var(--corporate-spacing-12);
+}
+
+/* Section Header Layout */
+.slide.layout-section {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: var(--corporate-gray-50);
+  border-left: 8px solid var(--corporate-accent);
+}
+
+.slide.layout-section h2 {
+  font-size: var(--corporate-text-5xl);
+  color: var(--corporate-primary);
+  margin-bottom: var(--corporate-spacing-4);
+}
+
+.slide.layout-section .section-number {
+  font-size: var(--corporate-text-xl);
+  color: var(--corporate-accent);
+  font-weight: 600;
+  margin-bottom: var(--corporate-spacing-6);
+}
+
+/* Two Column Layout */
+.slide.layout-two-column .slide-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--corporate-spacing-8);
+  height: 100%;
+  align-items: start;
+}
+
+.slide.layout-two-column .column {
+  height: 100%;
+}
+
+.slide.layout-two-column .column-left {
+  border-right: 1px solid var(--corporate-gray-200);
+  padding-right: var(--corporate-spacing-6);
+}
+
+/* Three Column Layout */
+.slide.layout-three-column .slide-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--corporate-spacing-6);
+  height: 100%;
+  align-items: start;
+}
+
+.slide.layout-three-column .column {
+  padding: var(--corporate-spacing-4);
+  border-radius: var(--corporate-radius-md);
+  background: var(--corporate-gray-50);
+}
+
+/* Image Focus Layout */
+.slide.layout-image-focus .slide-content {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: var(--corporate-spacing-8);
+  height: 100%;
+  align-items: center;
+}
+
+.slide.layout-image-focus .image-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.slide.layout-image-focus .image-container img {
+  max-height: 80vh;
+  width: auto;
+  object-fit: contain;
+  box-shadow: var(--corporate-shadow-lg);
+}
+
+/* Quote Layout */
+.slide.layout-quote {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: var(--corporate-primary);
+  color: var(--corporate-white);
+}
+
+.slide.layout-quote .slide-header,
+.slide.layout-quote .slide-footer {
+  display: none;
+}
+
+.slide.layout-quote blockquote {
+  border: none;
+  background: none;
+  color: var(--corporate-white);
+  font-size: var(--corporate-text-3xl);
+  font-weight: 300;
+  line-height: 1.4;
+  margin: 0;
+  padding: 0;
+  max-width: 80%;
+}
+
+.slide.layout-quote .quote-author {
+  font-size: var(--corporate-text-xl);
+  color: var(--corporate-gray-300);
+  margin-top: var(--corporate-spacing-8);
+  font-style: normal;
+}
+
+.slide.layout-quote .quote-author::before {
+  content: "— ";
+}
+
+/* Timeline Layout */
+.slide.layout-timeline .timeline {
+  position: relative;
+  margin: var(--corporate-spacing-8) 0;
+}
+
+.slide.layout-timeline .timeline::before {
+  content: '';
+  position: absolute;
+  left: 30px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--corporate-accent);
+}
+
+.slide.layout-timeline .timeline-item {
+  position: relative;
+  padding-left: var(--corporate-spacing-16);
+  margin-bottom: var(--corporate-spacing-8);
+}
+
+.slide.layout-timeline .timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  top: 6px;
+  width: 12px;
+  height: 12px;
+  background: var(--corporate-accent);
+  border-radius: 50%;
+  border: 3px solid var(--corporate-white);
+  box-shadow: var(--corporate-shadow);
+}
+
+.slide.layout-timeline .timeline-date {
+  font-size: var(--corporate-text-sm);
+  color: var(--corporate-accent);
+  font-weight: 600;
+  margin-bottom: var(--corporate-spacing-2);
+}
+
+.slide.layout-timeline .timeline-title {
+  font-size: var(--corporate-text-xl);
+  font-weight: 700;
+  color: var(--corporate-primary);
+  margin-bottom: var(--corporate-spacing-2);
+}
+
+.slide.layout-timeline .timeline-description {
+  font-size: var(--corporate-text-base);
+  color: var(--corporate-gray-700);
+  line-height: 1.6;
+}
+
+/* Comparison Layout */
+.slide.layout-comparison .comparison-container {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: var(--corporate-spacing-6);
+  height: 100%;
+  align-items: start;
+  margin-top: var(--corporate-spacing-6);
+}
+
+.slide.layout-comparison .comparison-side {
+  padding: var(--corporate-spacing-6);
+  border-radius: var(--corporate-radius-lg);
+  height: 100%;
+}
+
+.slide.layout-comparison .comparison-left {
+  background: rgba(var(--corporate-accent), 0.1);
+  border: 2px solid var(--corporate-accent);
+}
+
+.slide.layout-comparison .comparison-right {
+  background: rgba(var(--corporate-success), 0.1);
+  border: 2px solid var(--corporate-success);
+}
+
+.slide.layout-comparison .comparison-divider {
+  width: 2px;
+  background: var(--corporate-gray-300);
+  height: 80%;
+  margin: auto 0;
+  position: relative;
+}
+
+.slide.layout-comparison .comparison-divider::before {
+  content: 'VS';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--corporate-white);
+  padding: var(--corporate-spacing-2) var(--corporate-spacing-3);
+  border: 2px solid var(--corporate-gray-300);
+  border-radius: var(--corporate-radius);
+  font-weight: 700;
+  color: var(--corporate-gray-600);
+  font-size: var(--corporate-text-sm);
+}
+
+.slide.layout-comparison .comparison-title {
+  font-size: var(--corporate-text-2xl);
+  font-weight: 700;
+  margin-bottom: var(--corporate-spacing-4);
+  text-align: center;
+}
+
+.slide.layout-comparison .comparison-left .comparison-title {
+  color: var(--corporate-accent);
+}
+
+.slide.layout-comparison .comparison-right .comparison-title {
+  color: var(--corporate-success);
+}
+
+/* Content Grid Layout */
+.slide.layout-grid .content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--corporate-spacing-6);
+  margin-top: var(--corporate-spacing-6);
+}
+
+.slide.layout-grid .grid-item {
+  padding: var(--corporate-spacing-6);
+  background: var(--corporate-gray-50);
+  border-radius: var(--corporate-radius-lg);
+  border: 1px solid var(--corporate-gray-200);
+  box-shadow: var(--corporate-shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.slide.layout-grid .grid-item:hover {
+  box-shadow: var(--corporate-shadow-md);
+  transform: translateY(-2px);
+}
+
+.slide.layout-grid .grid-item-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--corporate-spacing-4);
+  background: var(--corporate-accent);
+  border-radius: var(--corporate-radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--corporate-white);
+  font-size: var(--corporate-text-xl);
+  font-weight: 700;
+}
+
+.slide.layout-grid .grid-item-title {
+  font-size: var(--corporate-text-lg);
+  font-weight: 600;
+  color: var(--corporate-primary);
+  margin-bottom: var(--corporate-spacing-3);
+}
+
+.slide.layout-grid .grid-item-description {
+  font-size: var(--corporate-text-base);
+  color: var(--corporate-gray-700);
+  line-height: 1.6;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .slide.layout-two-column .slide-content,
+  .slide.layout-three-column .slide-content {
+    grid-template-columns: 1fr;
+    gap: var(--corporate-spacing-4);
+  }
+  
+  .slide.layout-image-focus .slide-content {
+    grid-template-columns: 1fr;
+    gap: var(--corporate-spacing-4);
+  }
+  
+  .slide.layout-comparison .comparison-container {
+    grid-template-columns: 1fr;
+    gap: var(--corporate-spacing-4);
+  }
+  
+  .slide.layout-comparison .comparison-divider {
+    display: none;
+  }
+  
+  .slide.layout-timeline .timeline-item {
+    padding-left: var(--corporate-spacing-8);
+  }
+  
+  .slide.layout-timeline .timeline::before {
+    left: 15px;
+  }
+  
+  .slide.layout-timeline .timeline-item::before {
+    left: 9px;
+  }
+}

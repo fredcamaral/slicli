@@ -1,0 +1,201 @@
+/* Corporate Custom Theme Example */
+
+/* Import base theme and override variables */
+@import '../../../../themes/default/assets/css/variables.css';
+@import '../../../../themes/default/assets/css/reset.css';
+@import '../../../../themes/default/assets/css/typography.css';
+@import '../../../../themes/default/assets/css/layout.css';
+@import '../../../../themes/default/assets/css/components.css';
+@import '../../../../themes/default/assets/css/responsive.css';
+@import '../../../../themes/default/assets/css/print.css';
+
+/* Override with corporate brand colors and styles */
+:root {
+    /* Corporate Colors */
+    --primary-color: #003366;
+    --primary-hover: #002244;
+    --primary-light: #e6f0ff;
+    --accent-color: #ff6600;
+    --secondary-color: #666666;
+    
+    /* Professional Typography */
+    --font-family-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-family-heading: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+    --font-size-base: 1.125rem;
+    
+    /* Refined Layout */
+    --slide-padding: 5rem;
+    --slide-max-width: 1000px;
+    
+    /* Professional Shadows */
+    --shadow-sm: 0 1px 3px rgba(0, 51, 102, 0.12);
+    --shadow-md: 0 4px 6px rgba(0, 51, 102, 0.15);
+    --shadow-lg: 0 10px 15px rgba(0, 51, 102, 0.18);
+}
+
+/* Custom Corporate Styles */
+
+/* Title Slides with Corporate Branding */
+.slide.title {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #004488 100%);
+    color: white;
+}
+
+.slide.title h1 {
+    color: white;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    margin-bottom: 2rem;
+}
+
+.slide.title h2 {
+    color: var(--accent-color);
+    font-weight: 400;
+    font-size: var(--font-size-2xl);
+}
+
+/* Section Dividers */
+.slide.section {
+    background-color: var(--primary-light);
+    border-top: 4px solid var(--primary-color);
+}
+
+.slide.section h2 {
+    color: var(--primary-color);
+    font-size: var(--font-size-4xl);
+}
+
+/* Professional Navigation */
+.navigation {
+    background-color: white;
+    box-shadow: 0 2px 10px rgba(0, 51, 102, 0.1);
+    border: 1px solid var(--primary-light);
+}
+
+.nav-button {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.nav-button:hover {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* Corporate Progress Bar */
+.progress-bar {
+    height: 6px;
+    background-color: var(--primary-light);
+}
+
+.progress-fill {
+    background: linear-gradient(90deg, var(--primary-color) 0%, var(--accent-color) 100%);
+    height: 100%;
+}
+
+/* Professional Tables */
+table {
+    border: 1px solid var(--primary-light);
+}
+
+th {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.875em;
+    letter-spacing: 0.05em;
+}
+
+tr:nth-child(even) {
+    background-color: var(--primary-light);
+}
+
+/* Corporate Cards */
+.card {
+    border: 1px solid var(--primary-light);
+    border-top: 3px solid var(--primary-color);
+}
+
+.card-header {
+    color: var(--primary-color);
+    border-bottom: 1px solid var(--primary-light);
+    padding-bottom: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+/* Call-to-Action Buttons */
+.button.cta {
+    background-color: var(--accent-color);
+    color: white;
+    font-weight: 600;
+    padding: var(--space-md) var(--space-2xl);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.button.cta:hover {
+    background-color: #cc5200;
+    transform: translateY(-2px);
+}
+
+/* Corporate Lists */
+ul li::before {
+    content: "▸";
+    color: var(--accent-color);
+    font-weight: bold;
+    display: inline-block;
+    width: 1em;
+    margin-left: -1em;
+}
+
+/* Professional Blockquotes */
+blockquote {
+    border-left-color: var(--accent-color);
+    background-color: var(--primary-light);
+    position: relative;
+    padding-left: 3rem;
+}
+
+blockquote::before {
+    content: """;
+    position: absolute;
+    left: 1rem;
+    top: 0;
+    font-size: 3rem;
+    color: var(--accent-color);
+    font-family: var(--font-family-heading);
+}
+
+/* Corporate Footer */
+.slide-footer {
+    position: absolute;
+    bottom: 1rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--secondary-color);
+}
+
+.slide-footer .company-logo {
+    height: 2rem;
+    margin: 0 auto;
+}
+
+/* Print Adjustments */
+@media print {
+    .slide.title {
+        background: none;
+        color: var(--primary-color);
+        border: 2px solid var(--primary-color);
+    }
+    
+    .slide.title h1 {
+        color: var(--primary-color);
+    }
+}
+
+/* Add custom web fonts */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600;700&family=IBM+Plex+Serif:wght@300;400;600;700&display=swap');

@@ -1,0 +1,46 @@
+# Plugin manifest file
+[metadata]
+name = "example"
+version = "1.0.0"
+description = "Example plugin that demonstrates the plugin API"
+author = "Your Name"
+license = "MIT"
+homepage = "https://github.com/yourusername/example-plugin"
+type = "processor"
+tags = ["example", "demo", "template"]
+
+[requirements]
+min_slicli_version = "0.1.0"
+max_slicli_version = "1.0.0"
+os = ["linux", "darwin"]  # Linux and macOS
+arch = ["amd64", "arm64"]
+dependencies = []  # No dependencies on other plugins
+
+[capabilities]
+input_formats = ["text", "example-box", "example-highlight"]
+output_formats = ["html"]
+features = ["styling", "syntax-highlighting"]
+concurrent = true  # Thread-safe
+streaming = false  # Does not support streaming
+
+[config]
+enabled = true
+priority = 50  # Medium priority
+timeout = "5s"
+cache_results = true
+cache_ttl = "5m"
+
+# Plugin-specific options
+[config.options]
+style = "default"  # or "dark"
+max_lines = 1000
+
+# File extensions this plugin handles
+file_extensions = [".example", ".demo"]
+
+# Content patterns for auto-detection
+content_patterns = [
+    "^```example",
+    "^```example-box",
+    "^```example-highlight"
+]

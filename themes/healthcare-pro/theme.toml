@@ -1,0 +1,26 @@
+[theme]
+name = "Healthcare Pro"
+version = "1.0.0"
+author = "slicli Community"
+description = "Professional healthcare theme for medical presentations, clinical data, and patient care content"
+category = "healthcare"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["healthcare", "medical", "clinical", "professional", "patient-care"]
+premium = false
+price = 0.00
+featured = true
+
+[colors]
+primary = "#0077be"          # Medical blue
+secondary = "#005a87"        # Dark blue
+accent = "#00a651"           # Medical green
+background = "#ffffff"       # Clean white
+surface = "#f7f9fc"          # Light blue-gray
+text = "#2c3e50"            # Dark text
+text_muted = "#7f8c8d"       # Muted gray
+border = "#e1e8ed"           # Light border
+success = "#27ae60"          # Success green
+warning = "#f39c12"          # Warning orange
+error = "#e74c3c"            # Error red

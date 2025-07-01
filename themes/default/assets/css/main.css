@@ -1,0 +1,10 @@
+/* SliCLI Default Theme - Main Styles */
+
+/* Import modular CSS files */
+@import 'variables.css';
+@import 'reset.css';
+@import 'typography.css';
+@import 'layout.css';
+@import 'components.css';
+@import 'responsive.css';
+@import 'print.css';

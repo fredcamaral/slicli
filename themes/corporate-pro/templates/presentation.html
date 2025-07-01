@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - Corporate Pro</title>
+    
+    <!-- Corporate Pro Theme Styles -->
+    <link rel="stylesheet" href="{{.ThemeDir}}/assets/css/main.css">
+    <link rel="stylesheet" href="{{.ThemeDir}}/assets/css/layouts.css">
+    
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- JetBrains Mono for Code -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Custom Corporate Variables -->
+    <style>
+        :root {
+            {{if .Config.CompanyColor}}
+            --corporate-primary: {{.Config.CompanyColor}};
+            {{end}}
+            {{if .Config.SecondaryColor}}
+            --corporate-secondary: {{.Config.SecondaryColor}};
+            {{end}}
+            {{if .Config.AccentColor}}
+            --corporate-accent: {{.Config.AccentColor}};
+            {{end}}
+        }
+        
+        {{if .Config.CustomCSS}}
+        {{.Config.CustomCSS}}
+        {{end}}
+    </style>
+    
+    <!-- Meta Information -->
+    <meta name="author" content="{{.Author}}">
+    <meta name="description" content="{{.Description}}">
+    <meta name="generator" content="slicli Corporate Pro Theme">
+    
+    <!-- OpenGraph Meta Tags -->
+    <meta property="og:title" content="{{.Title}}">
+    <meta property="og:description" content="{{.Description}}">
+    <meta property="og:type" content="website">
+    {{if .Config.CompanyLogo}}
+    <meta property="og:image" content="{{.Config.CompanyLogo}}">
+    {{end}}
+</head>
+<body>
+    <div class="presentation" id="presentation">
+        {{range $index, $slide := .Slides}}
+        <div class="slide {{if eq $index 0}}active{{end}} {{$slide.Layout}}" 
+             data-slide="{{$index}}" 
+             {{if $slide.BackgroundImage}}style="background-image: url('{{$slide.BackgroundImage}}'); background-size: cover; background-position: center;"{{end}}>
+            
+            <!-- Slide Header (if not title or quote layout) -->
+            {{if and (ne $slide.Layout "layout-title") (ne $slide.Layout "layout-quote")}}
+            <div class="slide-header">
+                <div class="header-left">
+                    {{if $.Config.CompanyLogo}}
+                    <img src="{{$.Config.CompanyLogo}}" alt="{{$.Config.CompanyName}}" class="logo">
+                    {{else if $.Config.CompanyName}}
+                    <div class="company-name">{{$.Config.CompanyName}}</div>
+                    {{end}}
+                </div>
+                <div class="header-right">
+                    <span class="page-number">{{add $index 1}} / {{len $.Slides}}</span>
+                </div>
+            </div>
+            {{end}}
+            
+            <!-- Slide Content -->
+            <div class="slide-content">
+                {{$slide.Content}}
+            </div>
+            
+            <!-- Slide Footer (if not title or quote layout) -->
+            {{if and (ne $slide.Layout "layout-title") (ne $slide.Layout "layout-quote")}}
+            <div class="slide-footer">
+                <div class="company-info">
+                    {{if $.Config.CompanyName}}{{$.Config.CompanyName}}{{end}}
+                    {{if and $.Config.CompanyName $.Config.Department}} | {{$.Config.Department}}{{else if $.Config.Department}}{{$.Config.Department}}{{end}}
+                </div>
+                <div class="date">
+                    {{if $.Config.PresentationDate}}{{$.Config.PresentationDate}}{{else}}{{now.Format "January 2, 2006"}}{{end}}
+                </div>
+            </div>
+            {{end}}
+            
+            <!-- Speaker Notes (hidden) -->
+            {{if $slide.Notes}}
+            <div class="speaker-notes" style="display: none;">
+                {{$slide.Notes}}
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+    
+    <!-- Navigation Controls -->
+    <div class="navigation-controls" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; gap: 10px;">
+        <button onclick="previousSlide()" style="padding: 10px 15px; border: none; background: var(--corporate-primary); color: white; border-radius: 5px; cursor: pointer;">Previous</button>
+        <button onclick="nextSlide()" style="padding: 10px 15px; border: none; background: var(--corporate-primary); color: white; border-radius: 5px; cursor: pointer;">Next</button>
+        <button onclick="toggleFullscreen()" style="padding: 10px 15px; border: none; background: var(--corporate-accent); color: white; border-radius: 5px; cursor: pointer;">Fullscreen</button>
+    </div>
+    
+    <!-- Corporate Pro JavaScript -->
+    <script src="{{.ThemeDir}}/assets/js/corporate.js"></script>
+    
+    <!-- Presentation JavaScript -->
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            
+            // Update URL hash
+            window.location.hash = `slide-${currentSlide + 1}`;
+            
+            // Trigger slide change event
+            document.dispatchEvent(new CustomEvent('slideChange', {
+                detail: { slideIndex: currentSlide, slide: slides[currentSlide] }
+            }));
+        }
+        
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+        
+        function previousSlide() {
+            showSlide(currentSlide - 1);
+        }
+        
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case 'ArrowRight':
+                case ' ':
+                case 'PageDown':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                case 'PageUp':
+                    e.preventDefault();
+                    previousSlide();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    showSlide(0);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    showSlide(totalSlides - 1);
+                    break;
+                case 'f':
+                case 'F11':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case 'Escape':
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    }
+                    break;
+            }
+        });
+        
+        // Initialize from URL hash
+        window.addEventListener('load', function() {
+            const hash = window.location.hash;
+            if (hash.startsWith('#slide-')) {
+                const slideNum = parseInt(hash.replace('#slide-', '')) - 1;
+                if (slideNum >= 0 && slideNum < totalSlides) {
+                    showSlide(slideNum);
+                }
+            }
+        });
+        
+        // Progress indicator
+        function updateProgress() {
+            const progress = ((currentSlide + 1) / totalSlides) * 100;
+            let progressBar = document.querySelector('.progress-bar');
+            if (!progressBar) {
+                progressBar = document.createElement('div');
+                progressBar.className = 'progress-bar';
+                progressBar.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: ${progress}%;
+                    height: 3px;
+                    background: var(--corporate-accent);
+                    transition: width 0.3s ease;
+                    z-index: 1001;
+                `;
+                document.body.appendChild(progressBar);
+            } else {
+                progressBar.style.width = progress + '%';
+            }
+        }
+        
+        document.addEventListener('slideChange', updateProgress);
+        updateProgress(); // Initialize
+        
+        // Print support
+        window.addEventListener('beforeprint', function() {
+            slides.forEach(slide => slide.classList.add('active'));
+        });
+        
+        window.addEventListener('afterprint', function() {
+            slides.forEach((slide, index) => {
+                if (index !== currentSlide) {
+                    slide.classList.remove('active');
+                }
+            });
+        });
+    </script>
+    
+    <!-- Analytics (if configured) -->
+    {{if .Config.GoogleAnalytics}}
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{.Config.GoogleAnalytics}}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{{.Config.GoogleAnalytics}}');
+    </script>
+    {{end}}
+</body>
+</html>

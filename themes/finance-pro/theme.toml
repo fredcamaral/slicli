@@ -1,0 +1,26 @@
+[theme]
+name = "Finance Pro"
+version = "1.0.0"
+author = "slicli Community"
+description = "Professional financial theme for banking, investment, and financial analysis presentations"
+category = "corporate"
+license = "MIT License"
+homepage = "https://github.com/fredcamaral/slicli"
+repository = "https://github.com/fredcamaral/slicli"
+tags = ["finance", "banking", "investment", "financial", "analysis"]
+premium = false
+price = 0.00
+featured = true
+
+[colors]
+primary = "#1e3a8a"          # Deep blue
+secondary = "#3730a3"        # Royal blue
+accent = "#059669"           # Currency green
+background = "#ffffff"       # Clean white
+surface = "#f8fafc"          # Light surface
+text = "#1e293b"            # Dark slate
+text_muted = "#64748b"       # Slate gray
+border = "#e2e8f0"           # Light border
+success = "#10b981"          # Profit green
+warning = "#f59e0b"          # Warning amber
+error = "#ef4444"            # Loss red

@@ -1,0 +1,46 @@
+# Default Theme Configuration
+name = "default"
+display_name = "Default"
+description = "Professional default theme with clean typography and modern design"
+author = "slicli"
+version = "1.0.0"
+license = "MIT"
+
+[variables]
+# Colors
+primary-color = "#2563eb"
+secondary-color = "#64748b"
+background-color = "#ffffff"
+text-color = "#1e293b"
+heading-color = "#0f172a"
+link-color = "#2563eb"
+code-bg = "#f1f5f9"
+code-text = "#1e293b"
+
+# Typography
+font-family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+heading-font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+code-font = "'SF Mono', Monaco, Consolas, 'Courier New', monospace"
+base-font-size = "20px"
+heading-scale = "1.25"
+
+# Layout
+slide-padding = "4rem"
+slide-max-width = "1200px"
+line-height = "1.6"
+
+# Effects
+transition-duration = "300ms"
+transition-easing = "ease-in-out"
+
+[transitions]
+type = "fade"
+duration = 300
+easing = "ease-in-out"
+
+[features]
+syntax-highlighting = true
+speaker-notes = true
+progress-bar = true
+slide-numbers = true
+navigation-arrows = true

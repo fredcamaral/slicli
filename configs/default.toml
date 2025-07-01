@@ -1,0 +1,54 @@
+# SliCLI Configuration File
+# This is the default configuration for the SliCLI slide generator
+# For more information, visit: https://github.com/fredcamaral/slicli
+
+[server]
+# HTTP server configuration
+host = "localhost"              # Server host (localhost, 0.0.0.0, or specific IP)
+port = 1000                     # Server port (1-65535)
+read_timeout = 30               # Request read timeout in seconds
+write_timeout = 30              # Response write timeout in seconds  
+shutdown_timeout = 5            # Graceful shutdown timeout in seconds
+environment = "development"     # Environment mode (development or production)
+cors_origins = [                # Allowed CORS origins for production mode
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://your-domain.com",
+    "https://*.your-domain.com"
+]
+
+[theme]
+# Presentation theme configuration
+name = "default"                # Theme name (default, professional, modern, etc.)
+custom_path = ""                # Path to custom theme directory (optional)
+
+[browser]
+# Browser configuration
+auto_open = true                # Automatically open browser when starting server
+browser = "default"             # Browser to use (default, chrome, firefox, safari, edge)
+
+[watcher]
+# File watching configuration
+interval_ms = 200               # File polling interval in milliseconds (minimum 50ms)
+debounce_ms = 500              # Debounce delay to prevent rapid reloads
+max_retries = 3                # Maximum retry attempts for file operations
+retry_delay_ms = 100           # Delay between retry attempts
+
+[plugins]
+# Plugin system configuration
+enabled = true                  # Enable plugin system
+directory = ""                  # Plugin directory (absolute path, empty for default)
+whitelist = []                  # Allowed plugins (empty = all allowed)
+blacklist = []                  # Blocked plugins
+
+[metadata]
+# Default presentation metadata
+author = ""                     # Default author name
+email = ""                      # Default author email
+company = ""                    # Default company/organization
+default_tags = []               # Default tags for presentations
+[metadata.custom]
+# Custom metadata fields (key = "value" format)
+# Examples:
+# department = "Engineering"
+# project = "Internal Training"

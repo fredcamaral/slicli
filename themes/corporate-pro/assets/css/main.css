@@ -1,0 +1,382 @@
+/**
+ * Corporate Pro Theme - Main Styles
+ * Professional presentation theme for enterprise use
+ */
+
+:root {
+  /* Corporate Color Palette */
+  --corporate-primary: #1a365d;
+  --corporate-secondary: #2d3748;
+  --corporate-accent: #3182ce;
+  --corporate-success: #38a169;
+  --corporate-warning: #d69e2e;
+  --corporate-error: #e53e3e;
+  
+  /* Neutral Colors */
+  --corporate-white: #ffffff;
+  --corporate-gray-50: #f7fafc;
+  --corporate-gray-100: #edf2f7;
+  --corporate-gray-200: #e2e8f0;
+  --corporate-gray-300: #cbd5e0;
+  --corporate-gray-400: #a0aec0;
+  --corporate-gray-500: #718096;
+  --corporate-gray-600: #4a5568;
+  --corporate-gray-700: #2d3748;
+  --corporate-gray-800: #1a202c;
+  --corporate-gray-900: #171923;
+  
+  /* Typography */
+  --corporate-font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  --corporate-font-mono: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  
+  /* Font Sizes */
+  --corporate-text-xs: 0.75rem;
+  --corporate-text-sm: 0.875rem;
+  --corporate-text-base: 1rem;
+  --corporate-text-lg: 1.125rem;
+  --corporate-text-xl: 1.25rem;
+  --corporate-text-2xl: 1.5rem;
+  --corporate-text-3xl: 1.875rem;
+  --corporate-text-4xl: 2.25rem;
+  --corporate-text-5xl: 3rem;
+  --corporate-text-6xl: 3.75rem;
+  
+  /* Spacing */
+  --corporate-spacing-1: 0.25rem;
+  --corporate-spacing-2: 0.5rem;
+  --corporate-spacing-3: 0.75rem;
+  --corporate-spacing-4: 1rem;
+  --corporate-spacing-6: 1.5rem;
+  --corporate-spacing-8: 2rem;
+  --corporate-spacing-12: 3rem;
+  --corporate-spacing-16: 4rem;
+  --corporate-spacing-20: 5rem;
+  
+  /* Shadows */
+  --corporate-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --corporate-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --corporate-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --corporate-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  /* Border Radius */
+  --corporate-radius-sm: 0.125rem;
+  --corporate-radius: 0.25rem;
+  --corporate-radius-md: 0.375rem;
+  --corporate-radius-lg: 0.5rem;
+}
+
+/* Reset and Base Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+body {
+  font-family: var(--corporate-font-family);
+  color: var(--corporate-gray-800);
+  background: var(--corporate-white);
+  font-feature-settings: 'kern' 1, 'liga' 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Presentation Container */
+.presentation {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Slide Styles */
+.slide {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--corporate-spacing-12);
+  background: var(--corporate-white);
+  position: relative;
+  overflow: hidden;
+}
+
+.slide.active {
+  display: flex;
+}
+
+.slide:not(.active) {
+  display: none;
+}
+
+/* Corporate Header */
+.slide-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--corporate-spacing-8);
+  padding-bottom: var(--corporate-spacing-4);
+  border-bottom: 2px solid var(--corporate-primary);
+}
+
+.slide-header .logo {
+  height: 40px;
+  width: auto;
+}
+
+.slide-header .page-number {
+  font-size: var(--corporate-text-sm);
+  color: var(--corporate-gray-500);
+  font-weight: 500;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: var(--corporate-spacing-6);
+  color: var(--corporate-primary);
+}
+
+h1 {
+  font-size: var(--corporate-text-5xl);
+  margin-bottom: var(--corporate-spacing-8);
+}
+
+h2 {
+  font-size: var(--corporate-text-4xl);
+}
+
+h3 {
+  font-size: var(--corporate-text-3xl);
+}
+
+h4 {
+  font-size: var(--corporate-text-2xl);
+}
+
+h5 {
+  font-size: var(--corporate-text-xl);
+}
+
+h6 {
+  font-size: var(--corporate-text-lg);
+}
+
+p {
+  font-size: var(--corporate-text-lg);
+  line-height: 1.7;
+  margin-bottom: var(--corporate-spacing-6);
+  color: var(--corporate-gray-700);
+}
+
+/* Links */
+a {
+  color: var(--corporate-accent);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--corporate-primary);
+  text-decoration: underline;
+}
+
+/* Lists */
+ul, ol {
+  margin-left: var(--corporate-spacing-6);
+  margin-bottom: var(--corporate-spacing-6);
+}
+
+li {
+  font-size: var(--corporate-text-lg);
+  line-height: 1.7;
+  margin-bottom: var(--corporate-spacing-3);
+  color: var(--corporate-gray-700);
+}
+
+li::marker {
+  color: var(--corporate-accent);
+}
+
+/* Code */
+code {
+  font-family: var(--corporate-font-mono);
+  font-size: var(--corporate-text-sm);
+  background: var(--corporate-gray-100);
+  padding: var(--corporate-spacing-1) var(--corporate-spacing-2);
+  border-radius: var(--corporate-radius);
+  color: var(--corporate-gray-800);
+}
+
+pre {
+  background: var(--corporate-gray-50);
+  border: 1px solid var(--corporate-gray-200);
+  border-radius: var(--corporate-radius-md);
+  padding: var(--corporate-spacing-6);
+  margin-bottom: var(--corporate-spacing-6);
+  overflow-x: auto;
+  box-shadow: var(--corporate-shadow-sm);
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: var(--corporate-text-base);
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--corporate-spacing-6);
+  box-shadow: var(--corporate-shadow);
+  border-radius: var(--corporate-radius-lg);
+  overflow: hidden;
+}
+
+th, td {
+  padding: var(--corporate-spacing-4);
+  text-align: left;
+  border-bottom: 1px solid var(--corporate-gray-200);
+}
+
+th {
+  background: var(--corporate-primary);
+  color: var(--corporate-white);
+  font-weight: 600;
+  font-size: var(--corporate-text-base);
+}
+
+td {
+  font-size: var(--corporate-text-base);
+  color: var(--corporate-gray-700);
+}
+
+tr:hover td {
+  background: var(--corporate-gray-50);
+}
+
+/* Blockquotes */
+blockquote {
+  border-left: 4px solid var(--corporate-accent);
+  padding-left: var(--corporate-spacing-6);
+  margin: var(--corporate-spacing-8) 0;
+  font-style: italic;
+  font-size: var(--corporate-text-xl);
+  color: var(--corporate-gray-600);
+  background: var(--corporate-gray-50);
+  padding: var(--corporate-spacing-6);
+  border-radius: var(--corporate-radius-md);
+}
+
+/* Images */
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--corporate-radius-md);
+  box-shadow: var(--corporate-shadow-md);
+  margin: var(--corporate-spacing-6) 0;
+}
+
+/* Slide Footer */
+.slide-footer {
+  margin-top: auto;
+  padding-top: var(--corporate-spacing-6);
+  border-top: 1px solid var(--corporate-gray-200);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--corporate-text-sm);
+  color: var(--corporate-gray-500);
+}
+
+.slide-footer .company-info {
+  font-weight: 500;
+}
+
+.slide-footer .date {
+  font-style: italic;
+}
+
+/* Utilities */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-left { text-align: left; }
+
+.text-primary { color: var(--corporate-primary); }
+.text-secondary { color: var(--corporate-secondary); }
+.text-accent { color: var(--corporate-accent); }
+.text-success { color: var(--corporate-success); }
+.text-warning { color: var(--corporate-warning); }
+.text-error { color: var(--corporate-error); }
+
+.bg-primary { background-color: var(--corporate-primary); }
+.bg-secondary { background-color: var(--corporate-secondary); }
+.bg-accent { background-color: var(--corporate-accent); }
+.bg-light { background-color: var(--corporate-gray-50); }
+
+.mb-0 { margin-bottom: 0; }
+.mb-2 { margin-bottom: var(--corporate-spacing-2); }
+.mb-4 { margin-bottom: var(--corporate-spacing-4); }
+.mb-6 { margin-bottom: var(--corporate-spacing-6); }
+.mb-8 { margin-bottom: var(--corporate-spacing-8); }
+
+.mt-0 { margin-top: 0; }
+.mt-2 { margin-top: var(--corporate-spacing-2); }
+.mt-4 { margin-top: var(--corporate-spacing-4); }
+.mt-6 { margin-top: var(--corporate-spacing-6); }
+.mt-8 { margin-top: var(--corporate-spacing-8); }
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .slide {
+    padding: var(--corporate-spacing-6);
+  }
+  
+  h1 { font-size: var(--corporate-text-4xl); }
+  h2 { font-size: var(--corporate-text-3xl); }
+  h3 { font-size: var(--corporate-text-2xl); }
+  h4 { font-size: var(--corporate-text-xl); }
+  
+  p, li {
+    font-size: var(--corporate-text-base);
+  }
+}
+
+/* Print Styles */
+@media print {
+  .slide {
+    page-break-after: always;
+    height: auto;
+    min-height: 100vh;
+  }
+  
+  .slide-header,
+  .slide-footer {
+    display: flex !important;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  :root {
+    --corporate-primary: #000000;
+    --corporate-secondary: #333333;
+    --corporate-accent: #0066cc;
+    --corporate-gray-700: #000000;
+    --corporate-gray-500: #333333;
+  }
+  
+  .slide {
+    border: 2px solid var(--corporate-primary);
+  }
+}

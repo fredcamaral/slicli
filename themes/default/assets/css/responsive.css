@@ -1,0 +1,220 @@
+/* Responsive Design - Default Theme */
+
+/* Mobile First Breakpoints */
+/* xs: 0-639px (default) */
+/* sm: 640px+ */
+/* md: 768px+ */
+/* lg: 1024px+ */
+/* xl: 1280px+ */
+/* 2xl: 1536px+ */
+
+/* Small devices (640px and up) */
+@media (min-width: 640px) {
+    :root {
+        --slide-padding: 3rem;
+    }
+}
+
+/* Medium devices (768px and up) */
+@media (min-width: 768px) {
+    :root {
+        --slide-padding: 4rem;
+        --font-size-base: 1.125rem;
+    }
+    
+    /* Re-enable columns on tablets */
+    .columns,
+    .columns.thirds {
+        grid-template-columns: initial;
+    }
+}
+
+/* Large devices (1024px and up) */
+@media (min-width: 1024px) {
+    :root {
+        --slide-padding: 5rem;
+        --font-size-base: 1.25rem;
+    }
+}
+
+/* Extra large devices (1280px and up) */
+@media (min-width: 1280px) {
+    :root {
+        --slide-max-width: 1280px;
+    }
+}
+
+/* 2XL devices (1536px and up) */
+@media (min-width: 1536px) {
+    :root {
+        --slide-max-width: 1400px;
+        --font-size-base: 1.375rem;
+    }
+}
+
+/* Mobile/Tablet Portrait (max-width: 767px) */
+@media (max-width: 767px) {
+    /* Adjust typography */
+    h1 { font-size: var(--font-size-4xl); }
+    h2 { font-size: var(--font-size-3xl); }
+    h3 { font-size: var(--font-size-2xl); }
+    h4 { font-size: var(--font-size-xl); }
+    h5 { font-size: var(--font-size-lg); }
+    h6 { font-size: var(--font-size-base); }
+    
+    /* Adjust slide padding */
+    .slide {
+        padding: var(--space-xl);
+    }
+    
+    .slide-content {
+        padding: 0;
+    }
+    
+    /* Stack columns on mobile */
+    .columns,
+    .columns.thirds {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+    
+    /* Adjust navigation */
+    .navigation {
+        bottom: 1rem;
+        gap: var(--space-sm);
+        padding: var(--space-xs);
+    }
+    
+    .nav-button {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 1rem;
+    }
+    
+    /* Adjust code blocks */
+    pre {
+        font-size: var(--font-size-xs);
+        padding: var(--space-md);
+    }
+    
+    /* Adjust tables for mobile */
+    table {
+        font-size: var(--font-size-sm);
+    }
+    
+    th, td {
+        padding: var(--space-sm);
+    }
+    
+    /* Hide slide numbers on small screens */
+    .slide-numbers {
+        display: none;
+    }
+    
+    /* Adjust modals */
+    .modal {
+        padding: var(--space-lg);
+        width: 95%;
+    }
+}
+
+/* Ultra-wide screens (min-width: 1920px) */
+@media (min-width: 1920px) {
+    :root {
+        --slide-max-width: 1600px;
+        --font-size-base: 1.5rem;
+        --slide-padding: 6rem;
+    }
+}
+
+/* Portrait orientation adjustments */
+@media (orientation: portrait) {
+    .slide.title h1 {
+        font-size: var(--font-size-4xl);
+    }
+    
+    /* Adjust image sizes for portrait */
+    .slide img {
+        max-height: 50vh;
+        width: auto;
+        margin: var(--space-lg) auto;
+    }
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) and (max-height: 600px) {
+    :root {
+        --slide-padding: 2rem;
+        --font-size-base: 1rem;
+    }
+    
+    h1 { font-size: var(--font-size-3xl); }
+    h2 { font-size: var(--font-size-2xl); }
+    
+    .navigation {
+        bottom: 0.5rem;
+    }
+    
+    .nav-button {
+        width: 2rem;
+        height: 2rem;
+    }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2),
+       (min-resolution: 192dpi) {
+    /* Enhance shadows for retina displays */
+    :root {
+        --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.15), 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.08);
+    }
+}
+
+/* Touch device adjustments */
+@media (hover: none) and (pointer: coarse) {
+    /* Increase tap targets */
+    .nav-button {
+        width: 3.5rem;
+        height: 3.5rem;
+    }
+    
+    .button {
+        padding: var(--space-md) var(--space-xl);
+        font-size: var(--font-size-lg);
+    }
+    
+    /* Remove hover effects on touch devices */
+    .card:hover {
+        box-shadow: var(--shadow-md);
+    }
+    
+    .nav-button:hover {
+        transform: none;
+    }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    
+    .fragment {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+    }
+}
+
+/* Dark mode support (if system preference) */
+@media (prefers-color-scheme: dark) {
+    /* Dark mode adjustments would go here */
+    /* This is just a placeholder for system dark mode detection */
+}

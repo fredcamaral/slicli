@@ -1,0 +1,26 @@
+# SLICLI Configuration for Simple Example
+
+[server]
+host = "localhost"
+port = 3002
+read_timeout = 45
+write_timeout = 45
+
+[theme]
+name = "default"
+
+[browser]
+auto_open = true
+browser = "default"
+
+[watcher]
+interval_ms = 200
+enabled = true
+
+[plugins]
+enabled = true
+
+[metadata]
+title = "SLICLI Demo Presentation"
+author = "SLICLI Team"
+description = "A comprehensive demonstration of SLICLI features"
