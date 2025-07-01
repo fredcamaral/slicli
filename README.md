@@ -26,7 +26,7 @@ Your presentation is now live at `http://localhost:1000` 🎉
 ### Core Capabilities
 - **🚀 Zero Configuration** - Start presenting immediately, no build steps required
 - **⚡ Live Reload** - Real-time preview with automatic file watching
-- **🎨 10+ Professional Themes** - Executive Pro, Developer Dark, Academic Research, and more
+- **🎨 15+ Professional Themes** - Executive Pro, Developer Dark, Academic Research, and more
 - **🔌 Plugin System** - Extensible with Mermaid diagrams, syntax highlighting, and code execution
 - **📱 Mobile Responsive** - Perfect rendering on all device sizes
 - **🌐 Offline Ready** - No internet required for core functionality
@@ -55,7 +55,7 @@ go install github.com/fredcamaral/slicli/cmd/slicli@latest
 
 ## 🎨 Available Themes
 
-SliCLI comes with 10+ professionally designed themes:
+SliCLI comes with 15+ professionally designed themes:
 
 | Theme | Best For | Style |
 |-------|----------|-------|
@@ -69,6 +69,11 @@ SliCLI comes with 10+ professionally designed themes:
 | **Education Plus** | Teaching materials | Friendly, educational |
 | **Creative Studio** | Design presentations | Colorful, creative |
 | **Scientific Pro** | Research presentations | Technical, structured |
+| **Corporate Pro** | Business presentations | Professional, corporate |
+| **TechConf Pro** | Conference talks | Technical, modern |
+| **Default** | General purpose | Clean, versatile |
+| **Minimal** | Content-focused | Distraction-free |
+| **Dark** | Low-light environments | Modern dark theme |
 
 ```bash
 # Use a specific theme
@@ -310,7 +315,7 @@ Check out the `/examples` directory for:
 ### Current Focus (Open Source Community)
 - ✅ Core slide generation and theming
 - ✅ Plugin system with marketplace
-- ✅ 10+ professional themes
+- ✅ 15+ professional themes
 - ✅ Live reload and development experience
 - 🔄 Community plugin contributions
 - 🔄 Enhanced export formats

@@ -1,23 +1,35 @@
 # SliCLI Themes
 
-This directory contains the built-in themes for SliCLI presentations.
+This directory contains the built-in themes for SliCLI presentations. All themes are professionally designed, fully responsive, and optimized for various presentation contexts.
 
-## Available Themes
+## Available Themes (15 Total)
 
-### Default
-- **Path:** `themes/default/`
-- **Description:** Professional theme with clean typography and modern design
-- **Best for:** Business presentations, technical talks, educational content
+### Executive Themes
+- **Executive Pro** (`executive-pro`) - Premium executive theme for C-suite and board presentations with sophisticated typography
+- **Corporate Pro** (`corporate-pro`) - Professional corporate theme with business-focused layouts
 
-### Minimal
-- **Path:** `themes/minimal/`
-- **Description:** Distraction-free theme focused on content
-- **Best for:** Academic presentations, text-heavy content, minimalist aesthetic
+### Developer & Technical Themes  
+- **Developer Dark** (`developer-dark`) - Dark theme optimized for developers with syntax highlighting and terminal aesthetics
+- **TechConf Pro** (`techconf-pro`) - Modern technical conference theme perfect for developer presentations
 
-### Dark
-- **Path:** `themes/dark/`
-- **Description:** Modern dark theme optimized for low-light environments
-- **Best for:** Developer talks, evening presentations, code demonstrations
+### Academic & Educational Themes
+- **Academic Research** (`academic-research`) - Clean academic theme for scholarly presentations and research papers
+- **Education Plus** (`education-plus`) - Friendly educational theme perfect for teaching materials and courses
+- **Scientific Pro** (`scientific-pro`) - Technical theme designed for research presentations and scientific content
+
+### Business & Industry Themes
+- **Startup Pitch** (`startup-pitch`) - Modern bold theme designed for investor presentations and pitches
+- **Finance Pro** (`finance-pro`) - Data-focused theme optimized for financial presentations and charts
+- **Healthcare Pro** (`healthcare-pro`) - Professional accessible theme for medical presentations
+
+### Creative & Design Themes
+- **Creative Studio** (`creative-studio`) - Colorful creative theme for design presentations and portfolios
+- **Modern Minimal** (`modern-minimal`) - Minimalist elegant theme for clean presentations
+
+### Utility Themes
+- **Default** (`default`) - Versatile general-purpose theme with clean design
+- **Minimal** (`minimal`) - Distraction-free theme focused purely on content
+- **Dark** (`dark`) - Modern dark theme optimized for low-light environments
 
 ## Theme Structure
 
@@ -49,14 +61,24 @@ theme: dark
 
 ### Command Line
 ```bash
+# Use any theme by name
+slicli serve presentation.md --theme executive-pro
+slicli serve presentation.md --theme developer-dark
 slicli serve presentation.md --theme minimal
+
+# List all available themes
+slicli themes list
 ```
 
 ### Per Presentation
 ```markdown
 ---
-theme: dark
+title: "My Presentation"
+theme: executive-pro
+author: "Your Name"
 ---
+
+# Your presentation content here
 ```
 
 ## Creating Custom Themes
