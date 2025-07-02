@@ -1,0 +1,150 @@
+name: 🔌 Plugin Request
+description: Suggest a new plugin for SliCLI
+title: "[PLUGIN] "
+labels: ["plugin", "enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new plugin! 🔌
+        
+        Plugins extend SliCLI's functionality by processing specific content types in presentations.
+
+  - type: input
+    id: plugin-name
+    attributes:
+      label: Plugin name
+      description: What would you like to call this plugin?
+      placeholder: e.g., plantuml, chartjs, katex
+    validations:
+      required: true
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: Plugin purpose
+      description: What would this plugin do?
+      placeholder: This plugin would process... and generate...
+    validations:
+      required: true
+
+  - type: textarea
+    id: input-format
+    attributes:
+      label: Input format
+      description: What kind of input would the plugin accept?
+      placeholder: |
+        ```plugin-name
+        input content here
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: output-format
+    attributes:
+      label: Expected output
+      description: What kind of output should the plugin generate?
+      placeholder: HTML, SVG, Canvas, Images, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use cases
+      description: What would people use this plugin for?
+      placeholder: |
+        - Creating diagrams for...
+        - Rendering mathematical formulas in...
+        - Displaying charts for...
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples
+      description: Provide examples of how the plugin would be used
+      placeholder: |
+        ```markdown
+        ```plugin-name
+        example input content
+        ```
+        ```
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Implementation complexity
+      description: How complex do you think this plugin would be to implement?
+      options:
+        - Simple (text processing, basic formatting)
+        - Medium (external library integration, moderate logic)
+        - Complex (heavy processing, external services, advanced features)
+    validations:
+      required: true
+
+  - type: textarea
+    id: existing-tools
+    attributes:
+      label: Existing tools or libraries
+      description: Are there existing tools or libraries that could be used?
+      placeholder: |
+        - Library X provides...
+        - Tool Y can generate...
+        - Service Z offers...
+
+  - type: dropdown
+    id: dependencies
+    attributes:
+      label: External dependencies
+      description: Would this plugin require external dependencies?
+      options:
+        - No external dependencies
+        - Go libraries only
+        - System tools or binaries
+        - External web services
+        - Unsure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: implementation-help
+    attributes:
+      label: Implementation
+      description: Are you willing to help implement this plugin?
+      options:
+        - label: I'm willing to implement this plugin
+        - label: I can help with testing
+        - label: I can provide domain expertise
+        - label: I need guidance from maintainers
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Are there existing plugins or workarounds that partially solve this?
+      placeholder: Currently, users can... but it's limited because...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Any other context, references, or examples
+      placeholder: Links to similar tools, documentation, specifications, etc.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing plugins and issues for duplicates
+          required: true
+        - label: This plugin would be useful for presentation content
+          required: true
+        - label: I have provided clear examples and use cases
+          required: true
