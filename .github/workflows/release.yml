@@ -4,55 +4,14 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., v1.0.0)'
-        required: true
-        type: string
-
-env:
-  GO_VERSION: '1.24.4'
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
-  validate:
-    name: Validate Release
+  release:
+    name: Release
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: Run tests
-      run: |
-        go mod download
-        go test -race ./...
-
-    - name: Lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
-
-    - name: Security scan
-      run: |
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck ./...
-
-  build:
-    name: Build Release Binaries
-    runs-on: ubuntu-latest
-    needs: [validate]
     strategy:
       matrix:
         goos: [linux, darwin, windows]
@@ -62,199 +21,39 @@ jobs:
             goarch: arm64
 
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
-    - name: Set up Go
+    - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
+        go-version: '1.24.4'
 
-    - name: Get version
-      id: version
-      run: |
-        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-        else
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Build binary
+    - name: Build
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: 0
-        VERSION: ${{ steps.version.outputs.version }}
       run: |
-        mkdir -p dist
-        
         # Set binary name
         BINARY_NAME="slicli"
         if [ "$GOOS" = "windows" ]; then
           BINARY_NAME="slicli.exe"
         fi
         
-        # Build with version info
-        go build \
-          -ldflags="-s -w -X main.Version=${VERSION} -X main.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-          -o "dist/${BINARY_NAME}" \
-          ./cmd/slicli
+        # Build
+        go build -ldflags="-s -w" -o "$BINARY_NAME" ./cmd/slicli
         
-        # Create release directory
-        RELEASE_NAME="slicli-${VERSION#v}-${{ matrix.goos }}-${{ matrix.goarch }}"
-        mkdir -p "dist/${RELEASE_NAME}"
-        
-        # Copy binary
-        cp "dist/${BINARY_NAME}" "dist/${RELEASE_NAME}/"
-        rm "dist/${BINARY_NAME}"
-
-    - name: Copy assets and documentation
-      run: |
-        VERSION="${{ steps.version.outputs.version }}"
-        RELEASE_NAME="slicli-${VERSION#v}-${{ matrix.goos }}-${{ matrix.goarch }}"
-        
-        # Copy themes
-        cp -r themes "dist/${RELEASE_NAME}/"
-        
-        # Copy essential documentation
-        cp README.md "dist/${RELEASE_NAME}/"
-        cp LICENSE "dist/${RELEASE_NAME}/"
-        cp CLAUDE.md "dist/${RELEASE_NAME}/"
-        
-        # Copy example configurations
-        mkdir -p "dist/${RELEASE_NAME}/examples"
-        cp -r examples/simple-ppt "dist/${RELEASE_NAME}/examples/"
-        cp configs/default.toml "dist/${RELEASE_NAME}/examples/"
-
-    - name: Create archive
-      run: |
-        VERSION="${{ steps.version.outputs.version }}"
-        RELEASE_NAME="slicli-${VERSION#v}-${{ matrix.goos }}-${{ matrix.goarch }}"
-        cd dist
-        
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          zip -r "${RELEASE_NAME}.zip" "${RELEASE_NAME}"
+        # Create archive
+        if [ "$GOOS" = "windows" ]; then
+          zip "slicli-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "$BINARY_NAME"
         else
-          tar -czf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}"
+          tar -czf "slicli-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "$BINARY_NAME"
         fi
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: slicli-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: dist/*.tar.gz dist/*.zip
-        retention-days: 7
-
-  create-release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Get version
-      id: version
-      run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-
-    - name: Prepare release assets
-      run: |
-        mkdir -p release-assets
-        find artifacts -name "*.tar.gz" -o -name "*.zip" | xargs -I {} cp {} release-assets/
-        ls -la release-assets/
-
-    - name: Create Release
+    - name: Upload Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ steps.version.outputs.version }}
-        name: Release ${{ steps.version.outputs.version }}
-        body: |
-          ## Downloads
-          
-          ### Binaries
-          - **Linux AMD64**: `slicli-${{ steps.version.outputs.version }}-linux-amd64.tar.gz`
-          - **Linux ARM64**: `slicli-${{ steps.version.outputs.version }}-linux-arm64.tar.gz`
-          - **macOS AMD64**: `slicli-${{ steps.version.outputs.version }}-darwin-amd64.tar.gz`
-          - **macOS ARM64**: `slicli-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz`
-          - **Windows AMD64**: `slicli-${{ steps.version.outputs.version }}-windows-amd64.zip`
-          
-          ## Installation
-          
-          ### Using Go Install
-          ```bash
-          go install github.com/fredcamaral/slicli/cmd/slicli@${{ steps.version.outputs.version }}
-          ```
-          
-          ### Manual Installation
-          1. Download the appropriate binary for your platform
-          2. Extract the archive
-          3. Move the binary to your PATH
-          
-          ### Verification
-          ```bash
-          slicli --version
-          ```
-        files: release-assets/*
-        draft: false
-        prerelease: ${{ contains(steps.version.outputs.version, '-') }}
-        generate_release_notes: true
-
-  docker:
-    name: Build and Push Docker Image
-    runs-on: ubuntu-latest
-    needs: [validate]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Get version
-      id: version
-      run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ghcr.io/${{ github.repository }}
-        tags: |
-          type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
-          type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
-          type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
-          type=raw,value=latest
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        build-args: |
-          VERSION=${{ steps.version.outputs.version }}
-          BUILD_DATE=${{ github.run_id }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        files: |
+          *.tar.gz
+          *.zip

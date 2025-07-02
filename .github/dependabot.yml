@@ -1,87 +1,13 @@
 version: 2
 updates:
-  # Go modules for main project
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 10
-    reviewers:
-      - "fredcamaral"
-    assignees:
-      - "fredcamaral"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "go"
-    
-  # Go modules for plugins
-  - package-ecosystem: "gomod"
-    directory: "/plugins/mermaid"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "fredcamaral"
-    commit-message:
-      prefix: "deps(plugin/mermaid)"
-    labels:
-      - "dependencies"
-      - "plugin"
-      - "mermaid"
 
-  - package-ecosystem: "gomod"
-    directory: "/plugins/syntax-highlight"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "fredcamaral"
-    commit-message:
-      prefix: "deps(plugin/syntax-highlight)"
-    labels:
-      - "dependencies"
-      - "plugin"
-      - "syntax-highlight"
-
-  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "fredcamaral"
-    commit-message:
-      prefix: "ci"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "github-actions"
-      - "ci"
-
-  # Docker
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
     open-pull-requests-limit: 3
-    reviewers:
-      - "fredcamaral"
-    commit-message:
-      prefix: "docker"
-    labels:
-      - "dependencies"
-      - "docker"
