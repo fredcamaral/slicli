@@ -307,12 +307,15 @@ func (ml *MemoryLimiter) monitorMemoryUsage(ctx context.Context, cgroupPath stri
 		limitFile = filepath.Join(cgroupPath, "memory.max")
 	}
 
-	// Read memory limit for comparison
+	// Read memory limit for comparison (handle cgroup v2 "max" sentinel)
 	var memoryLimit int64
 	// #nosec G304 - limitFile path is constructed from validated cgroup directory structure
-	// Reading memory limit from cgroup filesystem is legitimate system monitoring
 	if data, err := os.ReadFile(limitFile); err == nil {
-		if limit, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64); err == nil {
+		dataStr := strings.TrimSpace(string(data))
+		if strings.EqualFold(dataStr, "max") {
+			// "max" means unlimited – keep memoryLimit at 0 so that percentage checks are skipped
+			memoryLimit = 0
+		} else if limit, err := strconv.ParseInt(dataStr, 10, 64); err == nil {
 			memoryLimit = limit
 		}
 	}
