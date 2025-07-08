@@ -668,24 +668,30 @@ func parseTimeout(timeoutStr string) (time.Duration, error) {
 		return 0, errors.New("empty timeout string")
 	}
 
-	// First try to parse as Go duration (e.g., "30s", "5m", "1h")
-	if duration, err := time.ParseDuration(timeoutStr); err == nil {
-		return duration, nil
+	// First try to parse as a Go duration (e.g., "30s", "5m", "1h")
+	if dur, err := time.ParseDuration(timeoutStr); err == nil {
+		return dur, nil
 	}
 
-	// Try to parse as plain number (assume seconds)
+	// Try to parse as a plain number (assume seconds, allow fractional values)
 	if seconds, err := strconv.ParseFloat(timeoutStr, 64); err == nil {
-		if seconds > 0 {
-			return time.Duration(seconds * float64(time.Second)), nil
+		if seconds <= 0 {
+			return 0, errors.New("timeout must be positive")
 		}
-		return 0, errors.New("timeout must be positive")
+
+		// Convert seconds (possibly fractional) to nanoseconds without losing precision.
+		// time.Duration expects an int64 representing nanoseconds, so we multiply using
+		// float64 then cast only once.
+		nanos := int64(seconds * float64(time.Second))
+		return time.Duration(nanos), nil
 	}
 
-	// Try to parse formats like "30000ms", "5000" (milliseconds)
-	msRegex := regexp.MustCompile(`^(\d+(?:\.\d+)?)ms?$`)
-	if matches := msRegex.FindStringSubmatch(timeoutStr); len(matches) > 1 {
+	// Try to parse formats like "30000ms" or "5000ms" (milliseconds)
+	msRegex := regexp.MustCompile(`^(\d+(?:\.\d+)?)ms$`)
+	if matches := msRegex.FindStringSubmatch(strings.ToLower(timeoutStr)); len(matches) == 2 {
 		if ms, err := strconv.ParseFloat(matches[1], 64); err == nil && ms > 0 {
-			return time.Duration(ms * float64(time.Millisecond)), nil
+			nanos := int64(ms * float64(time.Millisecond))
+			return time.Duration(nanos), nil
 		}
 	}
 

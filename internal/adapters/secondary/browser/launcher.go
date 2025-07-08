@@ -56,12 +56,10 @@ func (l *Launcher) Launch(url string, noOpen bool) error {
 
 // Detect detects available browsers
 func (l *Launcher) Detect() (string, error) {
-	if len(l.browsers) == 0 {
-		return "", errors.New("no browsers detected")
+	browser, err := l.selectBrowser()
+	if err != nil {
+		return "", err
 	}
-
-	// Return the first available browser
-	browser := l.browsers[0]
 	return browser.Name, nil
 }
 
@@ -71,9 +69,14 @@ func (l *Launcher) selectBrowser() (*Browser, error) {
 		return nil, errors.New("no browsers available")
 	}
 
-	// For now, just return the first browser
-	// In the future, we could check if the browser is actually installed
-	return &l.browsers[0], nil
+	// Return the first browser whose executable is available in PATH.
+	for _, candidate := range l.browsers {
+		if _, err := exec.LookPath(candidate.Command); err == nil {
+			return &candidate, nil
+		}
+	}
+
+	return nil, errors.New("no supported browsers found on this system")
 }
 
 // detectBrowsers detects available browsers based on the platform
