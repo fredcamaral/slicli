@@ -190,6 +190,38 @@ a:hover {
   text-decoration: underline;
 }
 
+/* Text Formatting */
+strong, b {
+  font-weight: 700;
+  color: var(--corporate-primary);
+}
+
+em, i {
+  font-style: italic;
+  color: var(--corporate-gray-700);
+}
+
+u {
+  text-decoration: underline;
+  text-decoration-color: var(--corporate-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.15em;
+}
+
+s, del {
+  text-decoration: line-through;
+  color: var(--corporate-gray-500);
+  opacity: 0.8;
+}
+
+mark {
+  background: rgba(49, 130, 206, 0.15);
+  padding: 0.1em 0.3em;
+  border-radius: var(--corporate-radius);
+  color: var(--corporate-primary);
+  font-weight: 600;
+}
+
 /* Lists */
 ul, ol {
   margin-left: var(--corporate-spacing-6);

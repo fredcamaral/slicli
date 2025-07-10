@@ -254,6 +254,40 @@
   color: var(--warning);
 }
 
+/* Text Formatting */
+strong, b {
+  font-weight: 700;
+  color: var(--primary);
+  font-family: var(--font-primary);
+}
+
+em, i {
+  font-style: italic;
+  color: var(--secondary);
+}
+
+u {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+s, del {
+  text-decoration: line-through;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+mark {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(16, 185, 129, 0.2));
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+  color: var(--text);
+  font-weight: 600;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+}
+
 /* Responsive design */
 @media (max-width: 1024px) {
   .slide { padding: 50px; }

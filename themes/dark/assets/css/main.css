@@ -185,6 +185,39 @@ a:hover {
     text-decoration: underline;
 }
 
+/* Text Formatting */
+strong, b {
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+em, i {
+    font-style: italic;
+    color: var(--text-color);
+}
+
+u {
+    text-decoration: underline;
+    text-decoration-color: var(--accent-color);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.2em;
+}
+
+s, del {
+    text-decoration: line-through;
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+mark {
+    background: rgba(96, 165, 250, 0.3);
+    padding: 0.1em 0.3em;
+    border-radius: var(--radius-sm);
+    color: var(--heading-color);
+    font-weight: 600;
+    border: 1px solid rgba(96, 165, 250, 0.5);
+}
+
 /* Lists */
 ul, ol {
     margin-bottom: var(--space-lg);

@@ -144,6 +144,32 @@ body {
     margin-bottom: 1em;
 }
 
+/* Text formatting */
+.slide strong,
+.slide b {
+    font-weight: 700;
+}
+
+.slide em,
+.slide i {
+    font-style: italic;
+}
+
+.slide u {
+    text-decoration: underline;
+}
+
+.slide s,
+.slide del {
+    text-decoration: line-through;
+}
+
+.slide mark {
+    background-color: #ffeb3b;
+    padding: 0.1em 0.2em;
+    border-radius: 2px;
+}
+
 /* Code blocks */
 .slide pre {
     background: #f4f4f4;

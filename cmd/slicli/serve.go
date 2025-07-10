@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,11 +11,16 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
 
 	"github.com/fredcamaral/slicli/internal/adapters/secondary/browser"
 	"github.com/fredcamaral/slicli/internal/adapters/secondary/config"
@@ -165,7 +171,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	printStartupInfo(logger, presentationPath, finalConfig)
 
 	// Load presentation content
-	htmlContent, err := loadPresentationContent(presentationPath)
+	htmlContent, err := loadPresentationContent(presentationPath, finalConfig)
 	if err != nil {
 		return err
 	}
@@ -211,7 +217,7 @@ func printStartupInfo(logger *Logger, presentationPath string, config *entities.
 }
 
 // loadPresentationContent validates and loads the presentation file content
-func loadPresentationContent(presentationPath string) (string, error) {
+func loadPresentationContent(presentationPath string, config *entities.Config) (string, error) {
 	// Validate and read the presentation file
 	fileInfo, err := os.Stat(presentationPath)
 	if err != nil {
@@ -228,7 +234,7 @@ func loadPresentationContent(presentationPath string) (string, error) {
 	}
 
 	// Process markdown into HTML slides
-	return processMarkdownToSlides(string(markdownContent), presentationPath), nil
+	return processMarkdownToSlides(string(markdownContent), presentationPath, config), nil
 }
 
 // createHTTPServer creates and configures the HTTP server with handlers
@@ -240,6 +246,9 @@ func createHTTPServer(config *entities.Config, htmlContent string) *http.Server 
 
 	// Serve static assets
 	mux.HandleFunc("/assets/", createAssetsHandler())
+	
+	// Serve theme assets
+	mux.HandleFunc("/themes/", createThemeAssetsHandler())
 
 	// Create HTTP server using configuration values
 	return &http.Server{
@@ -266,22 +275,138 @@ func createPresentationHandler(htmlContent string) http.HandlerFunc {
 // createAssetsHandler creates the handler for serving static assets
 func createAssetsHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
+		// Security: Clean and validate the path
+		cleanPath := filepath.Clean(r.URL.Path)
+		
+		// Prevent path traversal attacks
+		if strings.Contains(cleanPath, "..") {
+			http.NotFound(w, r)
+			return
+		}
+		
+		// Check if it's a known asset path from web/assets
+		switch cleanPath {
 		case "/assets/style.css":
-			w.Header().Set("Content-Type", "text/css")
-			css := getDefaultCSS()
-			if _, err := w.Write([]byte(css)); err != nil {
-				log.Printf("[ERROR] Failed to write CSS: %v", err)
+			// For compatibility, serve default CSS if file doesn't exist
+			cssPath := filepath.Join("web", "assets", "css", "main.css")
+			if _, err := os.Stat(cssPath); err == nil {
+				http.ServeFile(w, r, cssPath)
+			} else {
+				w.Header().Set("Content-Type", "text/css")
+				css := getDefaultCSS()
+				if _, err := w.Write([]byte(css)); err != nil {
+					log.Printf("[ERROR] Failed to write CSS: %v", err)
+				}
 			}
 		case "/assets/script.js":
-			w.Header().Set("Content-Type", "text/javascript")
-			js := getDefaultJS()
-			if _, err := w.Write([]byte(js)); err != nil {
-				log.Printf("[ERROR] Failed to write JS: %v", err)
+			// For compatibility, serve default JS if file doesn't exist
+			jsPath := filepath.Join("web", "assets", "js", "slicli.js")
+			if _, err := os.Stat(jsPath); err == nil {
+				http.ServeFile(w, r, jsPath)
+			} else {
+				w.Header().Set("Content-Type", "text/javascript")
+				js := getDefaultJS()
+				if _, err := w.Write([]byte(js)); err != nil {
+					log.Printf("[ERROR] Failed to write JS: %v", err)
+				}
 			}
 		default:
-			http.NotFound(w, r)
+			// Try to serve from web/assets directory
+			assetPath := filepath.Join("web", strings.TrimPrefix(cleanPath, "/"))
+			
+			// Check if file exists and is not a directory
+			fileInfo, err := os.Stat(assetPath)
+			if err != nil || fileInfo.IsDir() {
+				http.NotFound(w, r)
+				return
+			}
+			
+			// Set appropriate content type
+			setContentType(w, cleanPath)
+			
+			// Serve the file
+			http.ServeFile(w, r, assetPath)
 		}
+	}
+}
+
+// createThemeAssetsHandler creates the handler for serving theme assets
+func createThemeAssetsHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Security: Clean and validate the path
+		cleanPath := filepath.Clean(r.URL.Path)
+		
+		// Prevent path traversal attacks
+		if strings.Contains(cleanPath, "..") {
+			http.NotFound(w, r)
+			return
+		}
+		
+		// Remove /themes/ prefix to get the actual theme path
+		themePath := strings.TrimPrefix(cleanPath, "/themes/")
+		
+		// Try multiple possible theme locations
+		possiblePaths := []string{
+			filepath.Join("themes", themePath),                    // Current directory
+			filepath.Join("..", "..", "themes", themePath),       // Two levels up (when in subdirectory)
+			filepath.Join(os.Getenv("HOME"), ".slicli", "themes", themePath), // User home
+		}
+		
+		var fullPath string
+		var fileInfo os.FileInfo
+		var err error
+		
+		// Find the first existing path
+		for _, path := range possiblePaths {
+			fileInfo, err = os.Stat(path)
+			if err == nil && !fileInfo.IsDir() {
+				fullPath = path
+				break
+			}
+		}
+		
+		// If no valid path found, return 404
+		if fullPath == "" {
+			http.NotFound(w, r)
+			return
+		}
+		
+		// Set appropriate content type
+		setContentType(w, cleanPath)
+		
+		// Serve the file
+		http.ServeFile(w, r, fullPath)
+	}
+}
+
+// setContentType sets the appropriate content type based on file extension
+func setContentType(w http.ResponseWriter, path string) {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".css":
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	case ".js":
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	case ".html":
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	case ".png":
+		w.Header().Set("Content-Type", "image/png")
+	case ".jpg", ".jpeg":
+		w.Header().Set("Content-Type", "image/jpeg")
+	case ".gif":
+		w.Header().Set("Content-Type", "image/gif")
+	case ".svg":
+		w.Header().Set("Content-Type", "image/svg+xml")
+	case ".woff":
+		w.Header().Set("Content-Type", "font/woff")
+	case ".woff2":
+		w.Header().Set("Content-Type", "font/woff2")
+	case ".ttf":
+		w.Header().Set("Content-Type", "font/ttf")
+	case ".json":
+		w.Header().Set("Content-Type", "application/json")
+	default:
+		w.Header().Set("Content-Type", "application/octet-stream")
 	}
 }
 
@@ -544,7 +669,7 @@ func applyCliFlags(cmd *cobra.Command, config *entities.Config) {
 }
 
 // processMarkdownToSlides converts markdown content to HTML slides
-func processMarkdownToSlides(markdown, filePath string) string {
+func processMarkdownToSlides(markdown, filePath string, config *entities.Config) string {
 	// Split markdown by slide separator (---)
 	slides := strings.Split(markdown, "\n---\n")
 
@@ -558,37 +683,128 @@ func processMarkdownToSlides(markdown, filePath string) string {
 		// Basic markdown to HTML conversion
 		htmlContent := basicMarkdownToHTML(slideContent)
 
-		// Wrap in slide div
-		slideHTML := fmt.Sprintf(`
-		<div class="slide" id="slide-%d">
-			<div class="slide-content">
-				%s
-			</div>
-		</div>`, i+1, htmlContent)
+		// Determine slide type based on content
+		slideClass := determineSlideClass(slideContent, i)
+		
+		// Wrap in slide div with proper classes
+		slideHTML := fmt.Sprintf(`<div class="slide %s" id="slide-%d">%s</div>`, slideClass, i+1, htmlContent)
 
 		htmlSlides = append(htmlSlides, slideHTML)
 	}
 
 	// Generate complete HTML page
-	return generatePresentationHTML(strings.Join(htmlSlides, "\n"), filePath)
+	return generatePresentationHTML(strings.Join(htmlSlides, "\n"), filePath, config)
 }
 
-// basicMarkdownToHTML provides basic markdown to HTML conversion
+// basicMarkdownToHTML provides complete markdown to HTML conversion using Goldmark
 func basicMarkdownToHTML(markdown string) string {
-	lines := strings.Split(markdown, "\n")
-	var html strings.Builder
+	// Configure Goldmark with extensions for full markdown support
+	md := goldmark.New(
+		goldmark.WithExtensions(
+			extension.GFM,        // GitHub Flavored Markdown (tables, strikethrough, etc.)
+			extension.Table,      // Tables support
+			extension.Strikethrough, // ~~strikethrough~~ support
+			extension.TaskList,   // - [ ] task list support
+		),
+		goldmark.WithParserOptions(
+			parser.WithAutoHeadingID(), // Auto-generate heading IDs
+		),
+		goldmark.WithRendererOptions(
+			html.WithHardWraps(), // Convert line breaks to <br>
+			html.WithXHTML(),     // XHTML compliant output
+			html.WithUnsafe(),    // Allow raw HTML (needed for Mermaid)
+		),
+	)
 
-	processor := &markdownProcessor{
-		html:         &html,
-		inCodeBlock:  false,
-		codeLanguage: "",
+	// Convert markdown to HTML
+	var buf bytes.Buffer
+	if err := md.Convert([]byte(markdown), &buf); err != nil {
+		log.Printf("[ERROR] Failed to convert markdown: %v", err)
+		return markdown // Return original markdown on error
 	}
 
-	for _, line := range lines {
-		processor.processLine(strings.TrimSpace(line))
-	}
+	// Post-process for Mermaid diagrams
+	html := buf.String()
+	html = postProcessMermaidDiagrams(html)
+	
+	return html
+}
 
-	return html.String()
+// determineSlideClass determines the appropriate CSS class for a slide based on its content
+func determineSlideClass(slideContent string, slideIndex int) string {
+	lines := strings.Split(strings.TrimSpace(slideContent), "\n")
+	if len(lines) == 0 {
+		return "dev-content"
+	}
+	
+	firstLine := strings.TrimSpace(lines[0])
+	
+	// First slide is typically a title slide
+	if slideIndex == 0 {
+		return "dev-title"
+	}
+	
+	// Check if slide starts with a single H1 and has minimal content (section slide)
+	if strings.HasPrefix(firstLine, "# ") {
+		// Count meaningful content lines (non-empty, non-separator)
+		contentLines := 0
+		for _, line := range lines[1:] {
+			line = strings.TrimSpace(line)
+			if line != "" && line != "---" {
+				contentLines++
+			}
+		}
+		
+		// If H1 with minimal content, it's likely a section header
+		if contentLines <= 2 {
+			return "dev-section"
+		}
+	}
+	
+	// Check for specific patterns that indicate section slides
+	if strings.Contains(strings.ToLower(firstLine), "questions") || 
+	   strings.Contains(strings.ToLower(firstLine), "thank you") ||
+	   strings.Contains(strings.ToLower(firstLine), "demo") ||
+	   strings.Contains(strings.ToLower(firstLine), "roadmap") {
+		return "dev-section"
+	}
+	
+	// Default to content slide
+	return "dev-content"
+}
+
+// postProcessMermaidDiagrams converts Goldmark's code blocks to Mermaid divs
+func postProcessMermaidDiagrams(html string) string {
+	// Pattern to match Goldmark's code blocks with mermaid language (multiline with DOTALL)
+	mermaidPattern := regexp.MustCompile(`(?s)<pre><code class="language-mermaid">(.*?)</code></pre>`)
+	
+	return mermaidPattern.ReplaceAllStringFunc(html, func(match string) string {
+		// Extract the Mermaid content from the code block
+		submatch := mermaidPattern.FindStringSubmatch(match)
+		if len(submatch) < 2 {
+			return match
+		}
+		
+		mermaidContent := submatch[1]
+		
+		// Decode HTML entities that Goldmark encoded
+		mermaidContent = strings.ReplaceAll(mermaidContent, "&lt;", "<")
+		mermaidContent = strings.ReplaceAll(mermaidContent, "&gt;", ">")
+		mermaidContent = strings.ReplaceAll(mermaidContent, "&amp;", "&")
+		mermaidContent = strings.ReplaceAll(mermaidContent, "&#34;", `"`)
+		mermaidContent = strings.ReplaceAll(mermaidContent, "&#39;", `'`)
+		
+		// Clean up extra whitespace but preserve structure
+		mermaidContent = strings.TrimSpace(mermaidContent)
+		
+		// Escape content for HTML attribute
+		escapedContent := strings.ReplaceAll(mermaidContent, `"`, `&quot;`)
+		escapedContent = strings.ReplaceAll(escapedContent, `'`, `&#39;`)
+		escapedContent = strings.ReplaceAll(escapedContent, "\n", "&#10;")
+		
+		// Return Mermaid div with data-original attribute
+		return fmt.Sprintf(`<div class="mermaid" data-original="%s">%s</div>`, escapedContent, mermaidContent)
+	})
 }
 
 // markdownProcessor handles the stateful markdown to HTML conversion
@@ -596,6 +812,9 @@ type markdownProcessor struct {
 	html         *strings.Builder
 	inCodeBlock  bool
 	codeLanguage string
+	mermaidContent strings.Builder // Store original Mermaid content
+	inTable      bool
+	isFirstTableRow bool
 }
 
 // processLine processes a single line of markdown
@@ -636,7 +855,8 @@ func (p *markdownProcessor) handleCodeBlockBoundary(line string) {
 // writeCodeBlockOpening writes the opening tags for code blocks
 func (p *markdownProcessor) writeCodeBlockOpening() {
 	if p.codeLanguage == "mermaid" {
-		p.html.WriteString(`<div class="mermaid">`)
+		// For Mermaid, we'll store the content first, then create the div
+		p.html.WriteString(`<div class="mermaid" data-original="">`)
 	} else {
 		_, _ = fmt.Fprintf(p.html, `<pre class="code-block %s"><code>`, p.codeLanguage)
 	}
@@ -645,6 +865,24 @@ func (p *markdownProcessor) writeCodeBlockOpening() {
 // writeCodeBlockClosing writes the closing tags for code blocks
 func (p *markdownProcessor) writeCodeBlockClosing() {
 	if p.codeLanguage == "mermaid" {
+		// Get the collected Mermaid content and update the opening div
+		mermaidContent := strings.TrimSpace(p.mermaidContent.String())
+		
+		// Escape quotes for HTML attribute
+		escapedContent := strings.ReplaceAll(mermaidContent, `"`, `&quot;`)
+		escapedContent = strings.ReplaceAll(escapedContent, `'`, `&#39;`)
+		
+		// Replace the empty data-original with the actual content
+		currentHTML := p.html.String()
+		updatedHTML := strings.Replace(currentHTML, `data-original=""`, `data-original="`+escapedContent+`"`, 1)
+		
+		// Reset and write the updated HTML
+		p.html.Reset()
+		p.html.WriteString(updatedHTML)
+		
+		// Reset Mermaid content for next diagram
+		p.mermaidContent.Reset()
+		
 		p.html.WriteString("</div>\n")
 	} else {
 		p.html.WriteString("</code></pre>\n")
@@ -653,7 +891,17 @@ func (p *markdownProcessor) writeCodeBlockClosing() {
 
 // handleCodeBlockContent handles content inside code blocks
 func (p *markdownProcessor) handleCodeBlockContent(line string) {
-	p.html.WriteString(line + "\n")
+	if p.codeLanguage == "mermaid" {
+		// For Mermaid, collect content for data attribute but also write as-is
+		p.mermaidContent.WriteString(line + "\n")
+		p.html.WriteString(line + "\n")
+	} else {
+		// For other code blocks, escape HTML entities
+		escaped := strings.ReplaceAll(line, "&", "&amp;")
+		escaped = strings.ReplaceAll(escaped, "<", "&lt;")
+		escaped = strings.ReplaceAll(escaped, ">", "&gt;")
+		p.html.WriteString(escaped + "\n")
+	}
 }
 
 // handleRegularContent handles regular markdown content (headers, paragraphs, lists)
@@ -664,99 +912,296 @@ func (p *markdownProcessor) handleRegularContent(line string) {
 
 	// Handle headers (h3, h2, h1 in priority order)
 	if strings.HasPrefix(line, "### ") {
-		p.html.WriteString("<h3>" + strings.TrimPrefix(line, "### ") + "</h3>\n")
+		content := processInlineMarkdown(strings.TrimPrefix(line, "### "))
+		p.html.WriteString("<h3>" + content + "</h3>\n")
 	} else if strings.HasPrefix(line, "## ") {
-		p.html.WriteString("<h2>" + strings.TrimPrefix(line, "## ") + "</h2>\n")
+		content := processInlineMarkdown(strings.TrimPrefix(line, "## "))
+		p.html.WriteString("<h2>" + content + "</h2>\n")
 	} else if strings.HasPrefix(line, "# ") {
-		p.html.WriteString("<h1>" + strings.TrimPrefix(line, "# ") + "</h1>\n")
+		content := processInlineMarkdown(strings.TrimPrefix(line, "# "))
+		p.html.WriteString("<h1>" + content + "</h1>\n")
 	} else if strings.HasPrefix(line, "- ") {
 		// Handle list items
-		p.html.WriteString("<li>" + strings.TrimPrefix(line, "- ") + "</li>\n")
+		content := processInlineMarkdown(strings.TrimPrefix(line, "- "))
+		p.html.WriteString("<li>" + content + "</li>\n")
+	} else if strings.Contains(line, "|") && strings.Count(line, "|") >= 2 {
+		// Handle table rows
+		p.handleTableRow(line)
 	} else {
+		// End table if we were in one
+		if p.inTable {
+			p.html.WriteString("</table>\n")
+			p.inTable = false
+		}
 		// Regular paragraph
-		p.html.WriteString("<p>" + line + "</p>\n")
+		content := processInlineMarkdown(line)
+		p.html.WriteString("<p>" + content + "</p>\n")
 	}
 }
 
+// handleTableRow handles markdown table rows
+func (p *markdownProcessor) handleTableRow(line string) {
+	// Skip separator rows (rows with only |, -, and spaces)
+	if regexp.MustCompile(`^[\|\-\s]*$`).MatchString(line) {
+		return
+	}
+	
+	// Start table if not already in one
+	if !p.inTable {
+		p.html.WriteString("<table>\n")
+		p.inTable = true
+		p.isFirstTableRow = true
+	}
+	
+	// Split by | and clean up cells
+	cells := strings.Split(line, "|")
+	
+	// Remove empty cells at start and end
+	if len(cells) > 0 && strings.TrimSpace(cells[0]) == "" {
+		cells = cells[1:]
+	}
+	if len(cells) > 0 && strings.TrimSpace(cells[len(cells)-1]) == "" {
+		cells = cells[:len(cells)-1]
+	}
+	
+	// Start row
+	p.html.WriteString("<tr>")
+	
+	// Process each cell
+	for _, cell := range cells {
+		cell = strings.TrimSpace(cell)
+		content := processInlineMarkdown(cell)
+		
+		if p.isFirstTableRow {
+			p.html.WriteString("<th>" + content + "</th>")
+		} else {
+			p.html.WriteString("<td>" + content + "</td>")
+		}
+	}
+	
+	// End row
+	p.html.WriteString("</tr>\n")
+	
+	// No longer first row
+	p.isFirstTableRow = false
+}
+
+// processInlineMarkdown handles inline markdown formatting
+func processInlineMarkdown(text string) string {
+	// Process inline code first to avoid conflicts
+	text = regexp.MustCompile("`([^`]+)`").ReplaceAllString(text, "<code>$1</code>")
+	
+	// Process bold text (**text**)
+	text = regexp.MustCompile(`\*\*([^*]+)\*\*`).ReplaceAllString(text, "<strong>$1</strong>")
+	
+	// Process italic text (*text*) - but not list markers
+	// Use negative lookbehind/lookahead would be ideal, but Go doesn't support it
+	// So we'll use a more specific pattern
+	text = regexp.MustCompile(`(\s|^)\*([^*\s][^*]*[^*\s])\*(\s|$)`).ReplaceAllString(text, "$1<em>$2</em>$3")
+	
+	// Process strikethrough (~~text~~)
+	text = regexp.MustCompile(`~~([^~]+)~~`).ReplaceAllString(text, "<s>$1</s>")
+	
+	return text
+}
+
+// processInlinePattern applies a regex pattern to convert inline markdown
+func processInlinePattern(text, pattern, replacement string) string {
+	re := regexp.MustCompile(pattern)
+	return re.ReplaceAllString(text, replacement)
+}
+
 // generatePresentationHTML creates the complete HTML page with plugin assets
-func generatePresentationHTML(slidesHTML, filePath string) string {
+func generatePresentationHTML(slidesHTML, filePath string, config *entities.Config) string {
 	// TODO: In a real implementation, we would get the plugin renderer instance
 	// to access stored assets and include them in the HTML head section
 	// For now, we include default assets and common plugin dependencies
 
 	pluginAssets := `
     <!-- Common plugin assets -->
-    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
     <script src="https://unpkg.com/prismjs@1/components/prism-core.min.js"></script>
     <script src="https://unpkg.com/prismjs@1/plugins/autoloader/prism-autoloader.min.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/prismjs@1/themes/prism.css">
-    
-    <!-- Plugin-specific assets would be injected here -->
-    <!-- %PLUGIN_ASSETS% -->`
+    <link rel="stylesheet" href="https://unpkg.com/prismjs@1/themes/prism.css">`
 
-	return fmt.Sprintf(`<!DOCTYPE html>
+	themeName := "default"
+	if config != nil && config.Theme.Name != "" {
+		themeName = config.Theme.Name
+	}
+
+	// Build the HTML template with placeholders
+	htmlTemplate := `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SLICLI Presentation</title>
-    <link rel="stylesheet" href="/assets/style.css">%s
-</head>
-<body>
-    <div class="presentation-container">
-        <div class="slides-wrapper">
-            %s
-        </div>
-        <div class="navigation">
-            <button onclick="previousSlide()">←</button>
-            <span class="slide-counter">
-                <span id="current-slide">1</span> / <span id="total-slides">1</span>
-            </span>
-            <button onclick="nextSlide()">→</button>
-        </div>
-        <div class="presentation-info">
-            <strong>File:</strong> %s
-        </div>
-    </div>
-    <script src="/assets/script.js"></script>
-    <script>
-        // Initialize Mermaid with specific configuration
-        mermaid.initialize({
-            startOnLoad: true,
-            theme: 'default',
-            securityLevel: 'loose',
-            fontFamily: 'monospace',
-            flowchart: {
-                htmlLabels: true,
-                curve: 'linear'
-            },
-            er: {
-                useMaxWidth: false
-            }
-        });
-        
-        // Initialize Prism.js for syntax highlighting
-        if (window.Prism) {
-            Prism.highlightAll();
+    <style>
+        /* Minimal base reset - let theme handle everything else */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
         }
         
-        // Force re-render of plugin content after page load
+        /* Initial slide setup - hide all slides by default */
+        .slide {
+            display: none !important;
+        }
+        
+        /* Show only the first slide initially */
+        .slide:first-child {
+            display: flex !important;
+        }
+    </style>
+    <!-- Main CSS is optional, theme should override -->
+    <!-- <link rel="stylesheet" href="/assets/css/main.css"> -->
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="/themes/{THEME_NAME}/style.css">
+    {PLUGIN_ASSETS}
+</head>
+<body class="theme-{THEME_NAME} presentation">
+    <div class="slides-container">
+        {SLIDES_HTML}
+    </div>
+    <div class="navigation">
+        <button onclick="previousSlide()">←</button>
+        <span class="slide-counter">
+            <span id="current-slide">1</span> / <span id="total-slides">{SLIDE_COUNT}</span>
+        </span>
+        <button onclick="nextSlide()">→</button>
+    </div>
+    <div class="presentation-info">
+        <strong>File:</strong> {FILE_PATH}
+        <strong>Theme:</strong> {THEME_NAME}
+    </div>
+    <script>
+        // Basic slide navigation
+        let currentSlide = 1;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        function showSlide(n) {
+            slides.forEach(slide => {
+                slide.style.display = 'none';
+                slide.style.setProperty('display', 'none', 'important');
+            });
+            currentSlide = n;
+            if (currentSlide > totalSlides) currentSlide = 1;
+            if (currentSlide < 1) currentSlide = totalSlides;
+            const activeSlide = slides[currentSlide - 1];
+            activeSlide.style.setProperty('display', 'flex', 'important'); // Override CSS with important
+            document.getElementById('current-slide').textContent = currentSlide;
+            document.getElementById('total-slides').textContent = totalSlides;
+        }
+        
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+        
+        function previousSlide() {
+            showSlide(currentSlide - 1);
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextSlide();
+            if (e.key === 'ArrowLeft') previousSlide();
+        });
+        
+        // Initialize first slide and hide others
+        showSlide(1);
+        
+        // Ensure proper slide display on load
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                // Re-initialize Mermaid diagrams
-                if (window.mermaid) {
-                    mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+            // Hide all slides except the first
+            slides.forEach((slide, index) => {
+                if (index === 0) {
+                    slide.style.display = 'flex'; // Use flex as per theme CSS
+                } else {
+                    slide.style.display = 'none';
                 }
+            });
+        });
+        
+        // Initialize Mermaid after slides are set up
+        async function initializeMermaid() {
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({
+                    startOnLoad: false,  // Don't auto-start
+                    theme: 'dark',
+                    securityLevel: 'loose'
+                });
                 
-                // Re-highlight code blocks
-                if (window.Prism) {
-                    Prism.highlightAll();
+                // Manually render all visible mermaid diagrams
+                try {
+                    const mermaidElements = document.querySelectorAll('.mermaid');
+                    console.log('Found', mermaidElements.length, 'mermaid elements');
+                    
+                    for (let i = 0; i < mermaidElements.length; i++) {
+                        const element = mermaidElements[i];
+                        
+                        // Get the original markdown content from data attribute or textContent
+                        let graphDefinition = element.getAttribute('data-original') || element.textContent || element.innerText || '';
+                        
+                        // If we got the processed content, skip this element (already rendered)
+                        if (graphDefinition.includes('#mermaid-') || graphDefinition.includes('font-family')) {
+                            console.log('Skipping diagram', i, '- already rendered or contains styling');
+                            return;
+                        }
+                        
+                        // Clean up the definition
+                        graphDefinition = graphDefinition.trim();
+                        graphDefinition = graphDefinition.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+                        
+                        const id = 'mermaid-' + i;
+                        
+                        console.log('Rendering diagram', i, 'content:', JSON.stringify(graphDefinition));
+                        
+                        try {
+                            const { svg } = await mermaid.render(id, graphDefinition);
+                            element.innerHTML = svg;
+                            element.classList.add('mermaid-rendered');
+                            console.log('Successfully rendered diagram', i);
+                        } catch (renderError) {
+                            console.error('Mermaid render error for diagram', i, ':', renderError);
+                            element.innerHTML = '<div style="color: red; padding: 10px; border: 1px solid red;">Error: ' + renderError.message + '</div>';
+                        }
+                    }
+                } catch (e) {
+                    console.error('Mermaid initialization error:', e);
                 }
-            }, 500);
+            }
+        }
+        
+        // Wait for DOM and scripts to be ready
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize Prism.js for syntax highlighting
+            if (window.Prism) {
+                Prism.highlightAll();
+            }
+            
+            // Initialize Mermaid after a short delay to ensure everything is loaded
+            setTimeout(async () => {
+                await initializeMermaid();
+            }, 100);
         });
     </script>
 </body>
-</html>`, pluginAssets, slidesHTML, filePath)
+</html>`
+	
+	// Count total slides
+	slideCount := len(strings.Split(slidesHTML, `<div class="slide"`)) - 1
+	
+	// Replace placeholders
+	html := strings.ReplaceAll(htmlTemplate, "{THEME_NAME}", themeName)
+	html = strings.ReplaceAll(html, "{PLUGIN_ASSETS}", pluginAssets)
+	html = strings.ReplaceAll(html, "{SLIDES_HTML}", slidesHTML)
+	html = strings.ReplaceAll(html, "{FILE_PATH}", filePath)
+	html = strings.ReplaceAll(html, "{SLIDE_COUNT}", fmt.Sprintf("%d", slideCount))
+	return html
 }
 
 // getDefaultCSS returns basic CSS for presentations

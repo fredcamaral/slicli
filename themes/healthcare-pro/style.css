@@ -196,6 +196,40 @@
   border-bottom: 1px dotted var(--primary);
 }
 
+/* Text Formatting */
+strong, b {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+em, i {
+  font-style: italic;
+  color: var(--secondary);
+  font-family: var(--font-primary);
+}
+
+u {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+s, del {
+  text-decoration: line-through;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+mark {
+  background: rgba(0, 166, 81, 0.15);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  color: var(--primary);
+  font-weight: 600;
+  border: 1px solid rgba(0, 166, 81, 0.3);
+}
+
 /* Responsive design */
 @media (max-width: 1024px) {
   .slide { padding: 40px; }

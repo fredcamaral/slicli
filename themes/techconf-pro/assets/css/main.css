@@ -219,6 +219,36 @@ a:hover {
   text-shadow: var(--tech-glow);
 }
 
+/* Text formatting */
+strong, b {
+  font-weight: 700;
+  color: var(--tech-text-primary);
+}
+
+em, i {
+  font-style: italic;
+  color: var(--tech-text-secondary);
+}
+
+u {
+  text-decoration: underline;
+  text-decoration-color: var(--tech-accent);
+  text-underline-offset: 3px;
+}
+
+s, del {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+mark {
+  background: var(--tech-warning);
+  color: var(--tech-bg);
+  padding: var(--tech-spacing-1) var(--tech-spacing-2);
+  border-radius: var(--tech-radius);
+  font-weight: 500;
+}
+
 /* Lists */
 ul, ol {
   margin-left: var(--tech-spacing-6);

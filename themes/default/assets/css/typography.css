@@ -98,6 +98,19 @@ em, i {
     font-style: italic;
 }
 
+u {
+    text-decoration: underline;
+    text-decoration-color: var(--primary-color);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.2em;
+}
+
+s, del {
+    text-decoration: line-through;
+    color: var(--text-secondary);
+    opacity: 0.8;
+}
+
 /* Quotes */
 blockquote {
     margin: var(--space-xl) 0;

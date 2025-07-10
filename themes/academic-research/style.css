@@ -204,6 +204,38 @@ p {
   letter-spacing: 0.05em;
 }
 
+/* Text Formatting */
+strong, b {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+em, i {
+  font-style: italic;
+  font-family: var(--font-primary);
+}
+
+u {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+s, del {
+  text-decoration: line-through;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+mark {
+  background: rgba(52, 152, 219, 0.2);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  color: var(--primary);
+  font-weight: 600;
+}
+
 /* Lists */
 ul, ol {
   font-size: 1.25rem;

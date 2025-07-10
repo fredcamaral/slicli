@@ -188,6 +188,38 @@ p {
   line-height: 1.6;
 }
 
+/* Text Formatting */
+strong, b {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+em, i {
+  font-style: italic;
+  font-family: var(--font-primary);
+  color: var(--text);
+}
+
+u {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+s, del {
+  text-decoration: line-through;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+mark {
+  background: linear-gradient(to bottom, transparent 60%, var(--accent) 60%);
+  padding: 0.1em 0.3em;
+  color: var(--primary);
+  font-weight: 600;
+}
+
 /* Lists */
 ul, ol {
   font-size: 1.3rem;
