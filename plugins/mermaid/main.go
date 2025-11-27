@@ -89,10 +89,10 @@ var mermaidInitScript = `
 		var script = document.createElement('script');
 		script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
 		script.onload = function() {
-			mermaid.initialize({ 
+			mermaid.initialize({
 				startOnLoad: true,
 				theme: document.documentElement.dataset.mermaidTheme || 'default',
-				securityLevel: 'loose',
+				securityLevel: 'strict',  // SECURITY: Use strict mode to prevent XSS in diagram labels
 				fontFamily: 'monospace'
 			});
 			mermaid.init();

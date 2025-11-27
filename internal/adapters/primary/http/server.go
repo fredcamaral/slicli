@@ -19,6 +19,32 @@ import (
 	"github.com/fredcamaral/slicli/internal/domain/ports"
 )
 
+const (
+	// DefaultShutdownTimeout is the maximum time to wait for active connections
+	// to complete during graceful shutdown. 5 seconds allows most in-flight requests
+	// to complete while preventing indefinite hangs during shutdown.
+	DefaultShutdownTimeout = 5 * time.Second
+
+	// serverReadTimeout is the maximum duration for reading the entire request.
+	// 15 seconds accommodates slow networks and large presentation uploads
+	// while preventing resource exhaustion from idle connections.
+	serverReadTimeout = 15 * time.Second
+
+	// serverWriteTimeout is the maximum duration before timing out writes of the response.
+	// 15 seconds allows for large presentation rendering and file responses.
+	serverWriteTimeout = 15 * time.Second
+
+	// serverIdleTimeout is the maximum time to wait for the next request when
+	// keep-alives are enabled. 60 seconds allows for efficient connection reuse
+	// during active presentation viewing.
+	serverIdleTimeout = 60 * time.Second
+
+	// corsMaxAge is the maximum time (in seconds) that preflight request results
+	// can be cached by the browser. 5 minutes (300 seconds) reduces preflight
+	// overhead while allowing reasonable flexibility for CORS policy updates.
+	corsMaxAge = 300
+)
+
 // HTTPLogger provides structured logging for the HTTP server
 type HTTPLogger struct {
 	component string
@@ -103,6 +129,7 @@ func (l *HTTPLogger) SetLevel(level entities.LogLevel) {
 type Server struct {
 	server          *http.Server
 	connMgr         *ConnectionManager
+	rateLimiter     *rateLimiter
 	presenter       ports.PresentationService
 	renderer        ports.Renderer
 	presentation    *entities.Presentation // Store current presentation
@@ -117,23 +144,26 @@ type Server struct {
 
 // NewServer creates a new HTTP server
 // config must not be nil - use config.GetDefaultConfig().Server if needed
-func NewServer(presenter ports.PresentationService, renderer ports.Renderer, config *entities.ServerConfig) *Server {
+// Returns an error if config is nil
+func NewServer(presenter ports.PresentationService, renderer ports.Renderer, config *entities.ServerConfig) (*Server, error) {
 	if config == nil {
-		panic("server config cannot be nil - provide a valid ServerConfig")
+		return nil, errors.New("server config cannot be nil")
 	}
 	return &Server{
-		presenter: presenter,
-		renderer:  renderer,
-		connMgr:   NewConnectionManager(),
-		config:    config,
-		logger:    NewHTTPLogger("server", false), // Default logger, can be overridden
-	}
+		presenter:   presenter,
+		renderer:    renderer,
+		connMgr:     NewConnectionManager(),
+		rateLimiter: newRateLimiter(),
+		config:      config,
+		logger:      NewHTTPLogger("server", false), // Default logger, can be overridden
+	}, nil
 }
 
 // NewServerWithLogging creates a new HTTP server with logging configuration
-func NewServerWithLogging(presenter ports.PresentationService, renderer ports.Renderer, config *entities.ServerConfig, loggingConfig *entities.LoggingConfig) *Server {
+// Returns an error if config is nil
+func NewServerWithLogging(presenter ports.PresentationService, renderer ports.Renderer, config *entities.ServerConfig, loggingConfig *entities.LoggingConfig) (*Server, error) {
 	if config == nil {
-		panic("server config cannot be nil - provide a valid ServerConfig")
+		return nil, errors.New("server config cannot be nil")
 	}
 
 	level := entities.LogLevelInfo
@@ -145,12 +175,13 @@ func NewServerWithLogging(presenter ports.PresentationService, renderer ports.Re
 	}
 
 	return &Server{
-		presenter: presenter,
-		renderer:  renderer,
-		connMgr:   NewConnectionManager(),
-		config:    config,
-		logger:    NewHTTPLoggerWithLevel("server", verbose, level),
-	}
+		presenter:   presenter,
+		renderer:    renderer,
+		connMgr:     NewConnectionManager(),
+		rateLimiter: newRateLimiter(),
+		config:      config,
+		logger:      NewHTTPLoggerWithLevel("server", verbose, level),
+	}, nil
 }
 
 // SetLogger sets the HTTP logger with verbose configuration
@@ -223,16 +254,16 @@ func (s *Server) Start(ctx context.Context, port int, host string) error {
 		AllowedMethods:   []string{"GET", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Accept"},
 		AllowCredentials: false,
-		MaxAge:           300, // 5 minutes
+		MaxAge:           corsMaxAge,
 	})
 	handler := c.Handler(router)
 
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", host, port),
 		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  serverReadTimeout,
+		WriteTimeout: serverWriteTimeout,
+		IdleTimeout:  serverIdleTimeout,
 	}
 	s.running = true
 	s.mu.Unlock()
@@ -260,13 +291,18 @@ func (s *Server) Stop(ctx context.Context) error {
 	// Close all WebSocket connections
 	s.connMgr.CloseAll()
 
+	// Stop rate limiter cleanup goroutine
+	if s.rateLimiter != nil {
+		s.rateLimiter.Stop()
+	}
+
 	// Stop optimization service if available
 	if s.optimizationSvc != nil {
 		s.optimizationSvc.Stop()
 	}
 
-	// Shutdown HTTP server
-	shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// Shutdown HTTP server with graceful timeout
+	shutdownCtx, cancel := context.WithTimeout(ctx, DefaultShutdownTimeout)
 	defer cancel()
 
 	if err := s.server.Shutdown(shutdownCtx); err != nil {
@@ -333,7 +369,7 @@ func (s *Server) setupRoutes() http.Handler {
 
 	// Apply middleware in order: security -> rate limiting -> logging -> recovery
 	handler := securityHeadersMiddleware(mux)
-	handler = rateLimitMiddleware(handler)
+	handler = createRateLimitMiddleware(handler, s.rateLimiter)
 	handler = createLoggingMiddleware(handler, s.logger)
 	handler = createRecoveryMiddleware(handler, s.logger)
 

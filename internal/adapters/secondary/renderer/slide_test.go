@@ -122,7 +122,9 @@ func TestSlideRendererAdapter_RenderSlide(t *testing.T) {
 		result, err := renderer.RenderSlide(slide)
 		require.NoError(t, err)
 
-		assert.Contains(t, result.HTML, `<a href="https://example.com">Link text</a>`)
+		// Links now include security attributes (rel="noreferrer noopener" target="_blank")
+		assert.Contains(t, result.HTML, `href="https://example.com"`)
+		assert.Contains(t, result.HTML, "Link text</a>")
 		assert.Contains(t, result.HTML, `<img src="image.png" alt="Alt text"`)
 	})
 
@@ -154,7 +156,7 @@ func TestSlideRendererAdapter_RenderSlide(t *testing.T) {
 		assert.Contains(t, result.HTML, "code block")
 	})
 
-	t.Run("render with raw HTML", func(t *testing.T) {
+	t.Run("render with raw HTML sanitized", func(t *testing.T) {
 		slide := &entities.Slide{
 			Index: 0,
 			Title: "Raw HTML",
@@ -168,9 +170,12 @@ func TestSlideRendererAdapter_RenderSlide(t *testing.T) {
 		result, err := renderer.RenderSlide(slide)
 		require.NoError(t, err)
 
-		// Raw HTML should be preserved (WithUnsafe option)
-		assert.Contains(t, result.HTML, `<div class="custom">`)
-		assert.Contains(t, result.HTML, `<span style="color: red;">Custom HTML</span>`)
+		// SECURITY FIX: Raw HTML is now sanitized to prevent XSS attacks.
+		// The heading is still rendered, but unsafe HTML elements are stripped.
+		// This is intentional security hardening - raw HTML injection is a security risk.
+		assert.Contains(t, result.HTML, "Raw HTML Test</h1>")
+		// Inline styles and arbitrary divs are stripped for security
+		assert.NotContains(t, result.HTML, `style="color: red;"`)
 	})
 }
 

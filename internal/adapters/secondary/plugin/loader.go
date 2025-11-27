@@ -243,6 +243,19 @@ func (l *GoPluginLoader) LoadManifest(ctx context.Context, path string) (*entiti
 		return nil, fmt.Errorf("invalid manifest: %w", err)
 	}
 
+	// Security warning for missing signature (backwards compatibility - don't block)
+	if !manifest.Security.HasSignature() {
+		log.Printf("WARNING: Plugin '%s' manifest does not have a cryptographic signature. "+
+			"Consider adding signature verification for enhanced security. "+
+			"See documentation for plugin signing guidelines.", manifest.Metadata.Name)
+	}
+
+	// Security warning for missing checksum
+	if !manifest.Security.HasChecksum() {
+		log.Printf("WARNING: Plugin '%s' manifest does not have SHA256 checksum. "+
+			"Consider adding checksum for integrity verification.", manifest.Metadata.Name)
+	}
+
 	return &manifest, nil
 }
 

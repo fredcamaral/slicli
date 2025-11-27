@@ -3,11 +3,53 @@ package browser
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/fredcamaral/slicli/internal/domain/ports"
 )
+
+// ErrInvalidBrowserURL is returned when a URL is not safe for browser launch
+var ErrInvalidBrowserURL = errors.New("invalid URL for browser launch")
+
+// shellMetachars contains characters that could be used for shell command injection
+// on Windows when using cmd.exe
+const shellMetachars = "&|;$`!><^()"
+
+// ValidateBrowserURL validates that a URL is safe to pass to browser launch commands.
+// It checks for:
+// - Valid URL format with http/https scheme only
+// - No shell metacharacters that could enable command injection
+func ValidateBrowserURL(urlStr string) error {
+	// Parse the URL
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("%w: malformed URL: %v", ErrInvalidBrowserURL, err)
+	}
+
+	// Only allow http and https schemes
+	scheme := strings.ToLower(parsedURL.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("%w: only http and https schemes are allowed, got: %s", ErrInvalidBrowserURL, scheme)
+	}
+
+	// Check hostname for shell metacharacters
+	hostname := parsedURL.Hostname()
+	if hostname == "" {
+		return fmt.Errorf("%w: empty hostname", ErrInvalidBrowserURL)
+	}
+
+	// Check entire URL string for shell metacharacters
+	for _, char := range shellMetachars {
+		if strings.ContainsRune(urlStr, char) {
+			return fmt.Errorf("%w: URL contains forbidden character: %c", ErrInvalidBrowserURL, char)
+		}
+	}
+
+	return nil
+}
 
 // Launcher implements the BrowserLauncher interface
 type Launcher struct {
@@ -29,9 +71,14 @@ func NewLauncher() *Launcher {
 }
 
 // Launch opens a URL in the default browser
-func (l *Launcher) Launch(url string, noOpen bool) error {
+func (l *Launcher) Launch(urlStr string, noOpen bool) error {
 	if noOpen {
 		return nil
+	}
+
+	// Validate URL before launching to prevent command injection
+	if err := ValidateBrowserURL(urlStr); err != nil {
+		return fmt.Errorf("URL validation failed: %w", err)
 	}
 
 	browser, err := l.selectBrowser()
@@ -39,8 +86,8 @@ func (l *Launcher) Launch(url string, noOpen bool) error {
 		return fmt.Errorf("browser selection: %w", err)
 	}
 
-	args := browser.Args(url)
-	cmd := exec.Command(browser.Command, args...) // #nosec G204 - browser command validated by selectBrowser
+	args := browser.Args(urlStr)
+	cmd := exec.Command(browser.Command, args...) // #nosec G204 - URL validated above, browser command validated by selectBrowser
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launching browser: %w", err)
@@ -138,26 +185,28 @@ func detectBrowsers() []Browser {
 			},
 		}
 	case "windows":
+		// Use rundll32 url.dll,FileProtocolHandler instead of cmd /c start
+		// to avoid shell command injection vulnerabilities
 		return []Browser{
 			{
 				Name:    "Default",
-				Command: "cmd",
+				Command: "rundll32",
 				Args: func(url string) []string {
-					return []string{"/c", "start", url}
+					return []string{"url.dll,FileProtocolHandler", url}
 				},
 			},
 			{
 				Name:    "Chrome",
-				Command: "cmd",
+				Command: "chrome",
 				Args: func(url string) []string {
-					return []string{"/c", "start", "chrome", url}
+					return []string{url}
 				},
 			},
 			{
 				Name:    "Edge",
-				Command: "cmd",
+				Command: "msedge",
 				Args: func(url string) []string {
-					return []string{"/c", "start", "msedge", url}
+					return []string{url}
 				},
 			},
 		}

@@ -6,11 +6,97 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 )
+
+// dangerousCommandPatterns defines regex patterns for dangerous shell commands
+// These patterns are designed to catch various forms of dangerous commands
+var dangerousCommandPatterns = []struct {
+	pattern *regexp.Regexp
+	name    string
+}{
+	// File system destruction commands
+	{regexp.MustCompile(`(?i)\brm\s+(-[rfvI]*\s+)*`), "rm"},
+	{regexp.MustCompile(`(?i)\brmdir\b`), "rmdir"},
+	{regexp.MustCompile(`(?i)\bmv\s+`), "mv"},
+	{regexp.MustCompile(`(?i)\bchmod\b`), "chmod"},
+	{regexp.MustCompile(`(?i)\bchown\b`), "chown"},
+	{regexp.MustCompile(`(?i)\bdd\s+`), "dd"},
+	{regexp.MustCompile(`(?i)\bshred\b`), "shred"},
+	{regexp.MustCompile(`(?i)\bmkfs\b`), "mkfs"},
+	{regexp.MustCompile(`(?i)\bfdisk\b`), "fdisk"},
+
+	// Privilege escalation
+	{regexp.MustCompile(`(?i)\bsudo\b`), "sudo"},
+	{regexp.MustCompile(`(?i)\bsu\s+`), "su"},
+	{regexp.MustCompile(`(?i)\bpasswd\b`), "passwd"},
+	{regexp.MustCompile(`(?i)\buseradd\b`), "useradd"},
+	{regexp.MustCompile(`(?i)\buserdel\b`), "userdel"},
+
+	// Network commands (potential data exfiltration)
+	{regexp.MustCompile(`(?i)\bwget\b`), "wget"},
+	{regexp.MustCompile(`(?i)\bcurl\b`), "curl"},
+	{regexp.MustCompile(`(?i)\bssh\b`), "ssh"},
+	{regexp.MustCompile(`(?i)\bscp\b`), "scp"},
+	{regexp.MustCompile(`(?i)\brsync\b`), "rsync"},
+	{regexp.MustCompile(`(?i)\bftp\b`), "ftp"},
+	{regexp.MustCompile(`(?i)\bnc\s+`), "nc (netcat)"},
+	{regexp.MustCompile(`(?i)\bnetcat\b`), "netcat"},
+	{regexp.MustCompile(`(?i)\btelnet\b`), "telnet"},
+
+	// System commands
+	{regexp.MustCompile(`(?i)\bmount\b`), "mount"},
+	{regexp.MustCompile(`(?i)\bumount\b`), "umount"},
+	{regexp.MustCompile(`(?i)\breboot\b`), "reboot"},
+	{regexp.MustCompile(`(?i)\bshutdown\b`), "shutdown"},
+	{regexp.MustCompile(`(?i)\bhalt\b`), "halt"},
+	{regexp.MustCompile(`(?i)\biptables\b`), "iptables"},
+
+	// Process manipulation
+	{regexp.MustCompile(`(?i)\bkill\s+`), "kill"},
+	{regexp.MustCompile(`(?i)\bkillall\b`), "killall"},
+	{regexp.MustCompile(`(?i)\bpkill\b`), "pkill"},
+
+	// Scheduled tasks
+	{regexp.MustCompile(`(?i)\bcrontab\b`), "crontab"},
+	{regexp.MustCompile(`(?i)\bat\s+`), "at"},
+	{regexp.MustCompile(`(?i)\bbatch\b`), "batch"},
+
+	// Shell spawning and code execution
+	{regexp.MustCompile(`(?i)\beval\s+`), "eval"},
+	{regexp.MustCompile(`(?i)\bexec\s+`), "exec"},
+	{regexp.MustCompile(`(?i)\bsource\s+`), "source"},
+	{regexp.MustCompile(`(?i)\bbash\s+`), "bash"},
+	{regexp.MustCompile(`(?i)\bsh\s+-c`), "sh -c"},
+	{regexp.MustCompile(`(?i)\bzsh\s+`), "zsh"},
+
+	// Command substitution (allows arbitrary command execution)
+	// Note: $((expr)) is arithmetic expansion which is safe, so we exclude it
+	// The pattern matches $( followed by anything except another (
+	{regexp.MustCompile(`\$\([^(][^)]*\)`), "command substitution $()"},
+	{regexp.MustCompile("`[^`]+`"), "command substitution backticks"},
+
+	// Dangerous path access
+	{regexp.MustCompile(`/dev/`), "/dev/ access"},
+	{regexp.MustCompile(`/proc/`), "/proc/ access"},
+	{regexp.MustCompile(`/sys/`), "/sys/ access"},
+	{regexp.MustCompile(`/etc/passwd`), "/etc/passwd access"},
+	{regexp.MustCompile(`/etc/shadow`), "/etc/shadow access"},
+
+	// Environment variable manipulation that could be dangerous
+	{regexp.MustCompile(`(?i)\bexport\s+PATH=`), "PATH manipulation"},
+	{regexp.MustCompile(`(?i)\bexport\s+LD_`), "LD_* manipulation"},
+
+	// Redirection to system files
+	{regexp.MustCompile(`>\s*/etc/`), "write to /etc/"},
+	{regexp.MustCompile(`>\s*/dev/`), "write to /dev/"},
+	{regexp.MustCompile(`>\s*/proc/`), "write to /proc/"},
+	{regexp.MustCompile(`>\s*/sys/`), "write to /sys/"},
+}
 
 // BashExecutor executes Bash/shell scripts
 type BashExecutor struct{}
@@ -56,6 +142,14 @@ func (e *BashExecutor) GetDefaultConfig() entities.ExecutionConfig {
 
 // Prepare sets up Bash script execution
 func (e *BashExecutor) Prepare(ctx context.Context, code string, config entities.ExecutionConfig) (*exec.Cmd, func(), error) {
+	// Validate code for dangerous commands BEFORE any execution setup
+	// This check is performed unless TrustedMode is enabled
+	if !config.TrustedMode {
+		if err := e.validateBashCode(code); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	// Create temporary file for bash script
 	tmpFile, err := os.CreateTemp("", "slicli-bash-*.sh")
 	if err != nil {
@@ -108,6 +202,8 @@ func (e *BashExecutor) findShellExecutable() string {
 }
 
 // prepareBashScript wraps the user script with safety measures
+// Note: Dangerous command validation is performed in Prepare() BEFORE this function is called.
+// This function only adds runtime safety measures like resource limits and timeouts.
 func (e *BashExecutor) prepareBashScript(code string, config entities.ExecutionConfig) string {
 	var script strings.Builder
 
@@ -143,54 +239,51 @@ func (e *BashExecutor) prepareBashScript(code string, config entities.ExecutionC
 	script.WriteString("}\n")
 	script.WriteString("trap cleanup EXIT\n\n")
 
-	// Restricted commands check
+	// User script (already validated in Prepare() if not in TrustedMode)
 	script.WriteString("# User script:\n")
-
-	// Apply restrictions if not in trusted mode
-	if !config.TrustedMode {
-		code = e.restrictBashCode(code)
-	}
-
 	script.WriteString(code)
 	script.WriteString("\n")
 
 	return script.String()
 }
 
-// restrictBashCode applies security restrictions to bash code
-func (e *BashExecutor) restrictBashCode(code string) string {
-	// List of dangerous commands to check for
-	dangerousCommands := []string{
-		"rm ", "rmdir", "mv ", "cp ", "chmod", "chown",
-		"sudo", "su ", "passwd", "useradd", "userdel",
-		"mount", "umount", "fdisk", "mkfs",
-		"iptables", "netcat", "nc ", "wget", "curl",
-		"ssh", "scp", "rsync", "ftp",
-		"crontab", "at ", "batch",
-		"kill", "killall", "pkill",
-		"reboot", "shutdown", "halt",
-		"dd ", "shred",
-		"eval", "exec", "source", ".",
-		"$(", "`", "bash", "sh ",
-		"/dev/", "/proc/", "/sys/",
-		"&", "&&", "||", "|",
-	}
+// validateBashCode checks bash code for dangerous commands and returns an error if any are found.
+// This function BLOCKS execution of dangerous commands rather than just warning about them.
+// The check uses regex patterns to catch various forms of dangerous commands including:
+// - File system destruction (rm, rmdir, mv, chmod, chown, dd, shred)
+// - Privilege escalation (sudo, su, passwd)
+// - Network operations (wget, curl, ssh, scp, nc, netcat)
+// - System commands (mount, reboot, shutdown)
+// - Command substitution ($() and backticks)
+// - Access to sensitive paths (/dev/, /proc/, /sys/, /etc/passwd, /etc/shadow)
+func (e *BashExecutor) validateBashCode(code string) error {
+	var blockedCommands []string
 
-	// Check for dangerous patterns
-	lowerCode := strings.ToLower(code)
-	var warnings []string
-
-	for _, cmd := range dangerousCommands {
-		if strings.Contains(lowerCode, cmd) {
-			warnings = append(warnings, "# WARNING: Potentially dangerous command detected: "+cmd)
+	// Check against all dangerous command patterns
+	for _, dp := range dangerousCommandPatterns {
+		if dp.pattern.MatchString(code) {
+			blockedCommands = append(blockedCommands, dp.name)
 		}
 	}
 
-	// Add warnings to the top of the script
-	if len(warnings) > 0 {
-		warningBlock := strings.Join(warnings, "\n") + "\n\n"
-		code = warningBlock + code
+	// If any dangerous commands were found, return an error
+	if len(blockedCommands) > 0 {
+		return entities.NewBlockedCommandError(blockedCommands)
 	}
 
-	return code
+	return nil
+}
+
+// IsDangerousCommand checks if a single command is dangerous.
+// This is a helper function for external validation needs.
+func IsDangerousCommand(code string) (bool, []string) {
+	var blockedCommands []string
+
+	for _, dp := range dangerousCommandPatterns {
+		if dp.pattern.MatchString(code) {
+			blockedCommands = append(blockedCommands, dp.name)
+		}
+	}
+
+	return len(blockedCommands) > 0, blockedCommands
 }

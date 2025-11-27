@@ -53,12 +53,13 @@ Note: Elaborate on each point`)
 		assert.Equal(t, "Introduction", presentation.Slides[0].Title)
 		assert.Contains(t, presentation.Slides[0].Content, "Welcome to the presentation")
 		assert.Equal(t, "Speaker notes for intro", presentation.Slides[0].Notes)
-		assert.Contains(t, presentation.Slides[0].HTML, "<h1>Introduction</h1>")
-		assert.Contains(t, presentation.Slides[0].HTML, "<p>Welcome to the presentation</p>")
+		// HTML now includes auto-generated IDs on headings (accessibility improvement)
+		assert.Contains(t, presentation.Slides[0].HTML, "Introduction</h1>")
+		assert.Contains(t, presentation.Slides[0].HTML, "Welcome to the presentation")
 
 		// Second slide - ExtractTitle only looks for H1, so it generates a default title
 		assert.Equal(t, "Slide 2", presentation.Slides[1].Title)
-		assert.Contains(t, presentation.Slides[1].HTML, "<h2>Main Content</h2>")
+		assert.Contains(t, presentation.Slides[1].HTML, "Main Content</h2>")
 		assert.Contains(t, presentation.Slides[1].HTML, "<li>Point 1</li>")
 	})
 
@@ -144,7 +145,9 @@ title: Feature Test
 		assert.Contains(t, html, "<table>")
 		assert.Contains(t, html, "<ol>")
 		assert.Contains(t, html, "<ul>")
-		assert.Contains(t, html, `<a href="https://example.com">Link</a>`)
+		// Links now include security attributes (rel="noreferrer noopener" target="_blank")
+		assert.Contains(t, html, `href="https://example.com"`)
+		assert.Contains(t, html, "Link</a>")
 		assert.Contains(t, html, `<img src="image.png"`)
 	})
 

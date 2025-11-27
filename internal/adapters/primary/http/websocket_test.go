@@ -19,7 +19,8 @@ func TestWebSocketUpgrade(t *testing.T) {
 	t.Skip("Skipping WebSocket tests for now")
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
-	server := NewServer(presenter, renderer, getTestServerConfig())
+	server, err := NewServer(presenter, renderer, getTestServerConfig())
+	require.NoError(t, err)
 
 	// Create test server
 	ts := httptest.NewServer(http.HandlerFunc(server.handleWebSocket))
@@ -63,11 +64,12 @@ func TestWebSocketBroadcast(t *testing.T) {
 	t.Skip("Skipping WebSocket tests for now")
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
-	server := NewServer(presenter, renderer, getTestServerConfig())
+	server, err := NewServer(presenter, renderer, getTestServerConfig())
+	require.NoError(t, err)
 
 	// Start the server
 	ctx := context.Background()
-	err := server.Start(ctx, 0, "localhost")
+	err = server.Start(ctx, 0, "localhost")
 	require.NoError(t, err)
 	defer func() { _ = server.Stop(ctx) }()
 
@@ -128,7 +130,8 @@ func TestWebSocketClientDisconnect(t *testing.T) {
 	t.Skip("Skipping WebSocket tests for now")
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
-	server := NewServer(presenter, renderer, getTestServerConfig())
+	server, err := NewServer(presenter, renderer, getTestServerConfig())
+	require.NoError(t, err)
 
 	// Create test server
 	ts := httptest.NewServer(http.HandlerFunc(server.handleWebSocket))
@@ -157,7 +160,8 @@ func TestWebSocketPingPong(t *testing.T) {
 	t.Skip("Skipping WebSocket tests for now")
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
-	server := NewServer(presenter, renderer, getTestServerConfig())
+	server, err := NewServer(presenter, renderer, getTestServerConfig())
+	require.NoError(t, err)
 
 	// Create test server
 	ts := httptest.NewServer(http.HandlerFunc(server.handleWebSocket))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,11 +21,34 @@ type PDFRenderer struct {
 	browserAutomation *BrowserAutomation
 }
 
-// NewPDFRenderer creates a new PDF renderer
-func NewPDFRenderer() *PDFRenderer {
-	// Initialize with default browser config
+// NewPDFRenderer creates a new PDF renderer.
+// Returns an error if browser automation cannot be initialized.
+// Use NewPDFRendererWithFallback if you want to allow fallback rendering without browser.
+func NewPDFRenderer() (*PDFRenderer, error) {
 	browserConfig := BrowserConfig{}
-	browserAutomation, _ := NewBrowserAutomation(browserConfig)
+	browserAutomation, err := NewBrowserAutomation(browserConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize browser automation: %w", err)
+	}
+
+	return &PDFRenderer{
+		htmlRenderer:      NewHTMLRenderer(),
+		browserAutomation: browserAutomation,
+	}, nil
+}
+
+// NewPDFRendererWithFallback creates a new PDF renderer that falls back to
+// non-browser rendering if browser automation is unavailable.
+// This is useful for environments where Chrome/Chromium may not be installed.
+func NewPDFRendererWithFallback() *PDFRenderer {
+	browserConfig := BrowserConfig{}
+	browserAutomation, err := NewBrowserAutomation(browserConfig)
+	if err != nil {
+		// Log warning but continue - fallback rendering will be used
+		// browserAutomation will be nil, triggering fallback in convertHTMLToPDF
+		log.Printf("WARNING: browser automation unavailable, PDF export will use fallback renderer: %v", err)
+		browserAutomation = nil
+	}
 
 	return &PDFRenderer{
 		htmlRenderer:      NewHTMLRenderer(),
@@ -32,7 +56,8 @@ func NewPDFRenderer() *PDFRenderer {
 	}
 }
 
-// NewPDFRendererWithBrowser creates a new PDF renderer with custom browser config
+// NewPDFRendererWithBrowser creates a new PDF renderer with custom browser config.
+// Returns an error if browser automation cannot be initialized with the given config.
 func NewPDFRendererWithBrowser(browserConfig BrowserConfig) (*PDFRenderer, error) {
 	browserAutomation, err := NewBrowserAutomation(browserConfig)
 	if err != nil {
@@ -47,8 +72,19 @@ func NewPDFRendererWithBrowser(browserConfig BrowserConfig) (*PDFRenderer, error
 
 // Render exports the presentation to PDF
 func (r *PDFRenderer) Render(ctx context.Context, presentation *entities.Presentation, options *ExportOptions) (*ExportResult, error) {
-	// Create temporary HTML file
-	tmpDir := "/tmp"
+	// Validate required fields
+	if r.htmlRenderer == nil {
+		return nil, errors.New("PDF renderer not properly initialized: htmlRenderer is nil")
+	}
+	if presentation == nil {
+		return nil, errors.New("presentation cannot be nil")
+	}
+	if options == nil {
+		return nil, errors.New("export options cannot be nil")
+	}
+
+	// Create temporary HTML file using system temp directory for cross-platform compatibility
+	tmpDir := os.TempDir()
 	if dir := options.OutputPath; dir != "" {
 		if i := len(dir) - 1; i >= 0 && dir[i] == '/' {
 			tmpDir = dir[:i]
@@ -87,13 +123,19 @@ func (r *PDFRenderer) Render(ctx context.Context, presentation *entities.Present
 	}
 
 	// Convert HTML to PDF using browser automation or external tool
-	err = r.convertHTMLToPDF(tmpFile.Name(), options.OutputPath, options)
+	// Pass context for proper cancellation support
+	err = r.convertHTMLToPDF(ctx, tmpFile.Name(), options.OutputPath, options)
 	if err != nil {
 		return nil, fmt.Errorf("converting HTML to PDF: %w", err)
 	}
 
-	// Get file size
-	fileSize, _ := GetFileSize(options.OutputPath)
+	// Get file size - log warning if it fails but continue with 0 as fallback
+	// File size is informational and not critical to the export result
+	fileSize, err := GetFileSize(options.OutputPath)
+	if err != nil {
+		log.Printf("WARNING: failed to get file size for %s: %v", options.OutputPath, err)
+		fileSize = 0
+	}
 
 	return &ExportResult{
 		Success:    true,
@@ -104,17 +146,31 @@ func (r *PDFRenderer) Render(ctx context.Context, presentation *entities.Present
 	}, nil
 }
 
-// convertHTMLToPDF converts an HTML file to PDF using browser automation
-func (r *PDFRenderer) convertHTMLToPDF(htmlPath, outputPath string, options *ExportOptions) error {
+// convertHTMLToPDF converts an HTML file to PDF using browser automation.
+// It properly propagates the context for cancellation support.
+func (r *PDFRenderer) convertHTMLToPDF(ctx context.Context, htmlPath, outputPath string, options *ExportOptions) error {
+	// Check if context is cancelled first
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	// Check if browser automation is available
 	if r.browserAutomation == nil {
 		return r.fallbackPDFGeneration(htmlPath, outputPath, options)
 	}
 
-	ctx := context.Background()
 	if err := r.browserAutomation.IsAvailable(ctx); err != nil {
 		// Fallback to simple PDF generation if browser is not available
 		return r.fallbackPDFGeneration(htmlPath, outputPath, options)
+	}
+
+	// Check context again before expensive operation
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
 
 	// Convert export options to PDF options
@@ -125,9 +181,13 @@ func (r *PDFRenderer) convertHTMLToPDF(htmlPath, outputPath string, options *Exp
 		PrintFooters: false,
 	}
 
-	// Use browser automation for PDF generation
+	// Use browser automation for PDF generation with proper context
 	err := r.browserAutomation.ConvertHTMLToPDF(ctx, htmlPath, outputPath, pdfOptions)
 	if err != nil {
+		// Check if error is due to context cancellation
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		// Fallback to simple PDF generation if browser automation fails
 		return r.fallbackPDFGeneration(htmlPath, outputPath, options)
 	}

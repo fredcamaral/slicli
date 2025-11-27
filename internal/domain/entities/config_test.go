@@ -406,14 +406,15 @@ func TestPluginsConfig_Validate(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("valid marketplace URL - http", func(t *testing.T) {
+	t.Run("invalid marketplace URL - http not allowed", func(t *testing.T) {
 		config := PluginsConfig{
 			Enabled:        true,
 			MarketplaceURL: "http://localhost:3000",
 		}
 
 		err := config.Validate()
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "marketplace URL must use HTTPS for security")
 	})
 
 	t.Run("empty marketplace URL is valid", func(t *testing.T) {
@@ -434,7 +435,7 @@ func TestPluginsConfig_Validate(t *testing.T) {
 
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "marketplace URL must start with http:// or https://")
+		assert.Contains(t, err.Error(), "marketplace URL must use HTTPS for security")
 	})
 
 	t.Run("invalid marketplace URL - wrong protocol", func(t *testing.T) {
@@ -445,7 +446,7 @@ func TestPluginsConfig_Validate(t *testing.T) {
 
 		err := config.Validate()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "marketplace URL must start with http:// or https://")
+		assert.Contains(t, err.Error(), "marketplace URL must use HTTPS for security")
 	})
 }
 

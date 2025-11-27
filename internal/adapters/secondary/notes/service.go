@@ -2,14 +2,14 @@ package notes
 
 import (
 	"errors"
-	"fmt"
+	"html"
 	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/renderer/html"
+	gmhtml "github.com/yuin/goldmark/renderer/html"
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 )
@@ -21,13 +21,13 @@ type Service struct {
 	markdownMD goldmark.Markdown
 }
 
-// NewService creates a new notes service
+// NewService creates a new notes service.
 func NewService() *Service {
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithRendererOptions(
-			html.WithHardWraps(),
-			html.WithXHTML(),
+			gmhtml.WithHardWraps(),
+			gmhtml.WithXHTML(),
 		),
 	)
 
@@ -103,7 +103,8 @@ func (s *Service) ExtractNotes(content string) (mainContent string, notesContent
 	return strings.TrimSpace(mainContent), strings.TrimSpace(notesContent)
 }
 
-// ConvertNotesToHTML converts markdown notes to HTML
+// ConvertNotesToHTML converts markdown notes to HTML.
+// If markdown conversion fails, plain text is escaped and wrapped in paragraph tags.
 func (s *Service) ConvertNotesToHTML(notes string) string {
 	if strings.TrimSpace(notes) == "" {
 		return ""
@@ -111,8 +112,9 @@ func (s *Service) ConvertNotesToHTML(notes string) string {
 
 	var buf strings.Builder
 	if err := s.markdownMD.Convert([]byte(notes), &buf); err != nil {
-		// If markdown conversion fails, return as plain text wrapped in <p>
-		return fmt.Sprintf("<p>%s</p>", strings.ReplaceAll(notes, "\n", "<br>"))
+		// If markdown conversion fails, escape HTML and return as plain text wrapped in <p>
+		escaped := html.EscapeString(notes)
+		return "<p>" + strings.ReplaceAll(escaped, "\n", "<br>") + "</p>"
 	}
 
 	return buf.String()

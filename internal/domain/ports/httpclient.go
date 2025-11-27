@@ -25,7 +25,10 @@ type HTTPClientConfig struct {
 	UserAgent       string
 }
 
-// RealHTTPClient implements HTTPClient using standard HTTP client
+// RealHTTPClient implements HTTPClient using standard HTTP client.
+// TODO: Consider moving this implementation to internal/adapters/secondary/http
+// to better align with hexagonal architecture principles. The ports package should
+// ideally contain only interfaces, while implementations belong in adapters.
 type RealHTTPClient struct {
 	client *http.Client
 	config HTTPClientConfig

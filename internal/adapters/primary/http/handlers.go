@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,6 +15,27 @@ import (
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/microcosm-cc/bluemonday"
 )
+
+// maxRequestBodySize limits request body size to 1MB to prevent denial of service
+const maxRequestBodySize = 1 << 20 // 1MB
+
+// decodeJSONBody decodes JSON request body with size limits and strict parsing
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+	// Limit request body size
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(dst); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			return fmt.Errorf("request body too large (max %d bytes)", maxRequestBodySize)
+		}
+		return err
+	}
+	return nil
+}
 
 // ErrorResponse represents an error response
 type ErrorResponse struct {
@@ -162,12 +184,19 @@ func (s *Server) handleError(w http.ResponseWriter, err error, status int) {
 }
 
 // writeJSON writes a JSON response
+// Marshals data first to catch errors before writing headers
 func (s *Server) writeJSON(w http.ResponseWriter, data interface{}) {
+	// Marshal first to catch errors before writing headers
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		s.handleError(w, err, http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		s.logger.Error("Failed to encode JSON response: %v", err)
-		s.handleError(w, err, http.StatusInternalServerError)
+	if _, err := w.Write(jsonData); err != nil {
+		s.logger.Error("Failed to write JSON response: %v", err)
 	}
 }
 
@@ -326,7 +355,7 @@ func (s *Server) handleSetPresenterNotes(w http.ResponseWriter, r *http.Request)
 		Content string `json:"content"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONBody(w, r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -358,7 +387,7 @@ func (s *Server) handlePresenterNavigate(w http.ResponseWriter, r *http.Request)
 		Slide  int    `json:"slide,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONBody(w, r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -405,7 +434,7 @@ func (s *Server) handlePresenterTimer(w http.ResponseWriter, r *http.Request) {
 		Action string `json:"action"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONBody(w, r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -466,7 +495,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		Metadata        map[string]interface{} `json:"metadata,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONBody(w, r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -708,8 +737,8 @@ func (s *Server) handlePerformanceOptimize(w http.ResponseWriter, r *http.Reques
 		Type string `json:"type,omitempty"` // "gc", "memory", "cache", "all"
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// Default to full optimization if no body
+	if err := decodeJSONBody(w, r, &req); err != nil {
+		// Default to full optimization if no body or parse error
 		req.Type = "all"
 	}
 

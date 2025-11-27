@@ -416,32 +416,37 @@ func (ml *MemoryLimiter) terminateProcessesInCgroup(procsFile string) {
 	}
 }
 
-// executeMacOSWithLimits executes plugin with macOS resource limits
+// executeMacOSWithLimits executes plugin with macOS resource limits.
+//
+// IMPORTANT LIMITATION: macOS does not support cgroups, so memory limits cannot be
+// strictly enforced at the OS level. This implementation uses:
+// 1. syscall.Setrlimit (RLIMIT_AS) as a best-effort soft limit (may not work for all processes)
+// 2. Environment variables to communicate limits to cooperative plugins
+// 3. Memory monitoring with warnings but no enforcement capability
+//
+// For strict memory isolation on macOS, consider using containerized execution (Docker).
 func (ml *MemoryLimiter) executeMacOSWithLimits(ctx context.Context, p pluginapi.Plugin, input pluginapi.PluginInput, memoryLimitBytes int64, timeout time.Duration) (pluginapi.PluginOutput, error) {
-	// macOS uses ulimit and resource limits
 	execCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Set resource limits using ulimit
-	originalPath := os.Getenv("PATH")
+	// Log warning about macOS limitation
+	log.Printf("[WARNING] macOS memory limiting: strict enforcement unavailable (no cgroups). Using soft limits and environment variables. For strict isolation, use containerized execution.")
+
+	// Attempt to set resource limits using syscall.Setrlimit
+	// Note: On macOS, RLIMIT_AS (address space) may not be effective for all cases
+	if err := ml.setMacOSResourceLimits(memoryLimitBytes); err != nil {
+		log.Printf("[WARNING] Failed to set macOS resource limits: %v. Memory limit will only be communicated via environment variables.", err)
+	}
+
 	memoryLimitKB := memoryLimitBytes / 1024
 
-	// For macOS, we use environment variables to communicate limits
-	// since direct ulimit integration requires shell command execution
-
-	// For macOS, we need to monitor memory usage manually
-	// since cgroups aren't available
 	resultChan := make(chan struct {
 		output pluginapi.PluginOutput
 		err    error
 	}, 1)
 
 	go func() {
-		defer func() {
-			_ = os.Setenv("PATH", originalPath)
-		}()
-
-		// Set memory limit environment (both bytes and KB for compatibility)
+		// Set memory limit environment variables for cooperative plugins
 		_ = os.Setenv("SLICLI_MEMORY_LIMIT", strconv.FormatInt(memoryLimitBytes, 10))
 		_ = os.Setenv("SLICLI_MEMORY_LIMIT_KB", strconv.FormatInt(memoryLimitKB, 10))
 
@@ -458,6 +463,14 @@ func (ml *MemoryLimiter) executeMacOSWithLimits(ctx context.Context, p pluginapi
 	case <-execCtx.Done():
 		return pluginapi.PluginOutput{}, errors.New("execution timeout")
 	}
+}
+
+// setMacOSResourceLimits attempts to set resource limits using syscall.Setrlimit.
+// This is a best-effort mechanism as macOS may not honor RLIMIT_AS for all processes.
+func (ml *MemoryLimiter) setMacOSResourceLimits(memoryBytes int64) error {
+	// Note: This is implemented in memory_limiter_darwin.go with build tags
+	// On non-darwin platforms, this is a no-op stub
+	return ml.setResourceLimits(memoryBytes)
 }
 
 // executeWindowsWithJobObjects executes plugin with Windows job objects

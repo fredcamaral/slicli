@@ -17,7 +17,8 @@ func TestMarketplaceClient_FallbackToBuiltinPlugins(t *testing.T) {
 			Timeout:  1 * time.Second, // Short timeout for quick test
 			CacheTTL: 1 * time.Minute,
 		}
-		client := NewMarketplaceClient(config)
+		client, err := NewMarketplaceClient(config)
+		require.NoError(t, err)
 
 		// Try to list plugins - should fallback to built-in plugins
 		plugins, err := client.ListPlugins("", false)
@@ -43,7 +44,8 @@ func TestMarketplaceClient_FallbackToBuiltinPlugins(t *testing.T) {
 			Timeout:  1 * time.Second,
 			CacheTTL: 1 * time.Minute,
 		}
-		client := NewMarketplaceClient(config)
+		client, err := NewMarketplaceClient(config)
+		require.NoError(t, err)
 
 		// Try to get specific plugin - should fallback to built-in
 		plugin, err := client.GetPlugin("syntax-highlight")
@@ -62,7 +64,8 @@ func TestMarketplaceClient_FallbackToBuiltinPlugins(t *testing.T) {
 			Timeout:  1 * time.Second,
 			CacheTTL: 1 * time.Minute,
 		}
-		client := NewMarketplaceClient(config)
+		client, cErr := NewMarketplaceClient(config)
+		require.NoError(t, cErr)
 
 		// Try to get non-existent plugin
 		_, err := client.GetPlugin("non-existent-plugin")
@@ -77,7 +80,8 @@ func TestMarketplaceClient_FallbackToBuiltinPlugins(t *testing.T) {
 			Timeout:  1 * time.Second,
 			CacheTTL: 1 * time.Minute,
 		}
-		client := NewMarketplaceClient(config)
+		client, err := NewMarketplaceClient(config)
+		require.NoError(t, err)
 
 		// Filter by processor category
 		plugins, err := client.ListPlugins(entities.PluginTypeProcessor, false)
@@ -97,7 +101,8 @@ func TestMarketplaceClient_FallbackToBuiltinPlugins(t *testing.T) {
 			Timeout:  1 * time.Second,
 			CacheTTL: 1 * time.Minute,
 		}
-		client := NewMarketplaceClient(config)
+		client, err := NewMarketplaceClient(config)
+		require.NoError(t, err)
 
 		// Filter by premium (should return empty as all built-ins are free)
 		plugins, err := client.ListPlugins("", true)
@@ -112,7 +117,8 @@ func TestMarketplaceClient_FallbackToBuiltinPlugins(t *testing.T) {
 			Timeout:  1 * time.Second,
 			CacheTTL: 1 * time.Minute,
 		}
-		client := NewMarketplaceClient(config)
+		client, err := NewMarketplaceClient(config)
+		require.NoError(t, err)
 
 		// Get featured plugins
 		plugins, err := client.GetFeaturedPlugins()
@@ -136,7 +142,8 @@ func TestBuiltinPluginsData(t *testing.T) {
 		Timeout:  1 * time.Second,
 		CacheTTL: 1 * time.Minute,
 	}
-	client := NewMarketplaceClient(config)
+	client, err := NewMarketplaceClient(config)
+	require.NoError(t, err)
 
 	t.Run("built-in plugins have complete data", func(t *testing.T) {
 		plugins, err := client.ListPlugins("", false)

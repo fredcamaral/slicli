@@ -161,3 +161,113 @@ type MatchRule struct {
 	FileExt     string
 	ContentType string
 }
+
+// ConcurrentPluginExecutor handles concurrent plugin execution with optimization.
+type ConcurrentPluginExecutor interface {
+	// ExecuteWithPriority executes plugins with priority ordering.
+	// Jobs are grouped by priority level, executed concurrently within each level.
+	ExecuteWithPriority(ctx context.Context, prioritizedJobs [][]PluginJob) BatchResult
+
+	// OptimizeForContent analyzes content and returns optimized execution job groups.
+	OptimizeForContent(plugins []entities.PluginInstance, content string) [][]PluginJob
+
+	// GetActiveJobs returns currently executing jobs.
+	GetActiveJobs() []PluginJob
+
+	// GetCacheStats returns cache statistics.
+	GetCacheStats() map[string]interface{}
+
+	// ClearCache clears the result cache.
+	ClearCache()
+
+	// ClearExpiredCache removes expired cache entries.
+	ClearExpiredCache()
+
+	// SetMaxConcurrent updates the maximum concurrent execution limit.
+	SetMaxConcurrent(max int)
+}
+
+// PluginJob represents a plugin execution job.
+type PluginJob struct {
+	ID        string
+	Plugin    entities.PluginInstance
+	Input     plugin.PluginInput
+	StartTime time.Time
+	Timeout   time.Duration
+}
+
+// JobResult contains the result of a plugin execution job.
+type JobResult struct {
+	Output   plugin.PluginOutput
+	Error    error
+	Duration time.Duration
+	Cached   bool
+}
+
+// BatchResult contains results from batch execution.
+type BatchResult struct {
+	Results   map[string]JobResult
+	TotalTime time.Duration
+	Success   int
+	Failures  int
+}
+
+// MemoryLimitedPluginExecutor handles memory-limited plugin execution.
+type MemoryLimitedPluginExecutor interface {
+	// ExecuteWithMemoryLimit executes a plugin with memory limits.
+	ExecuteWithMemoryLimit(ctx context.Context, p plugin.Plugin, input plugin.PluginInput, timeout time.Duration) (plugin.PluginOutput, error)
+
+	// GetMemoryUsage returns current memory usage for active executions.
+	GetMemoryUsage() map[string]int64
+
+	// IsMemoryLimitingSupported returns whether memory limiting is available.
+	IsMemoryLimitingSupported() bool
+
+	// Cleanup releases resources used by the executor.
+	Cleanup() error
+
+	// GetActiveExecutions returns information about currently running executions.
+	GetActiveExecutions() map[string]time.Duration
+
+	// SetMemoryEnforcementPolicy configures memory monitoring behavior.
+	SetMemoryEnforcementPolicy(enableEnforcement, killOnExceed bool, warningThreshold, criticalThreshold float64)
+
+	// GetMemoryEnforcementPolicy returns current memory enforcement settings.
+	GetMemoryEnforcementPolicy() (enableEnforcement, killOnExceed bool, warningThreshold, criticalThreshold float64)
+}
+
+// OptimizationService provides performance optimization capabilities.
+type OptimizationService interface {
+	// Start begins optimization monitoring and management.
+	Start(ctx context.Context) error
+
+	// Stop stops the optimization service.
+	Stop()
+
+	// GetConcurrentExecutor returns the concurrent executor.
+	GetConcurrentExecutor() ConcurrentPluginExecutor
+
+	// GetPerformanceMonitor returns the performance monitor.
+	GetPerformanceMonitor() PerformanceMonitor
+
+	// ForceOptimization triggers immediate optimization.
+	ForceOptimization()
+
+	// GetOptimizationStats returns optimization statistics.
+	GetOptimizationStats() map[string]interface{}
+}
+
+// PerformanceMonitor provides performance monitoring capabilities.
+type PerformanceMonitor interface {
+	// RecordPluginExecution records a plugin execution duration.
+	RecordPluginExecution(duration time.Duration)
+
+	// GetMetrics returns current performance metrics.
+	GetMetrics() interface{}
+
+	// GetHealthStatus returns health status information.
+	GetHealthStatus() map[string]interface{}
+
+	// GetMemoryStats returns memory statistics.
+	GetMemoryStats() map[string]interface{}
+}

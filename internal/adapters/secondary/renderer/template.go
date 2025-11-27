@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 
+	"github.com/fredcamaral/slicli/internal/adapters/secondary/sanitizer"
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 )
 
@@ -21,8 +22,11 @@ func NewTemplateRenderer() (*TemplateRenderer, error) {
 
 	// Add template functions
 	tmpl = tmpl.Funcs(template.FuncMap{
+		// SECURITY: safeHTML now sanitizes content before marking as safe
+		// This prevents XSS while allowing safe HTML elements for presentations
 		"safeHTML": func(s string) template.HTML {
-			return template.HTML(s) // #nosec G203 - intentional safe HTML template function
+			sanitizedHTML := sanitizer.SanitizeHTML(s)
+			return template.HTML(sanitizedHTML) // #nosec G203 - content is sanitized
 		},
 	})
 

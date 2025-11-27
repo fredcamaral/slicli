@@ -30,7 +30,8 @@ type Presentation struct {
 	Slides []Slide `yaml:"-" json:"slides"`
 }
 
-// Validate ensures the presentation has valid required fields
+// Validate ensures the presentation has valid required fields.
+// This method is pure and does not modify any state - use ApplyDefaults() for that.
 func (p *Presentation) Validate() error {
 	if p.Title == "" {
 		return errors.New("presentation title is required")
@@ -47,16 +48,22 @@ func (p *Presentation) Validate() error {
 		}
 	}
 
-	// Set default theme if not specified
-	if p.Theme == "" {
-		p.Theme = "default"
-	}
-
 	return nil
 }
 
-// GetSlideByIndex returns a slide by its index (0-based)
+// ApplyDefaults applies default values to optional fields.
+// Call this after validation if you need defaults applied.
+func (p *Presentation) ApplyDefaults() {
+	if p.Theme == "" {
+		p.Theme = "default"
+	}
+}
+
+// GetSlideByIndex returns a slide by its index (0-based).
 func (p *Presentation) GetSlideByIndex(index int) (*Slide, error) {
+	if len(p.Slides) == 0 {
+		return nil, errors.New("presentation has no slides")
+	}
 	if index < 0 || index >= len(p.Slides) {
 		return nil, fmt.Errorf("slide index %d out of range (0-%d)", index, len(p.Slides)-1)
 	}

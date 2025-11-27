@@ -1,10 +1,16 @@
 package plugin
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -12,6 +18,156 @@ import (
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 )
+
+// ErrInternalURL is returned when a URL points to an internal/private network
+var ErrInternalURL = errors.New("URL points to internal or private network")
+
+// ErrInsecureURL is returned when a URL uses an insecure scheme
+var ErrInsecureURL = errors.New("URL must use HTTPS scheme")
+
+// ErrInvalidURL is returned when a URL is malformed or invalid
+var ErrInvalidURL = errors.New("invalid URL")
+
+// privateIPBlocks contains CIDR ranges for private/internal networks
+var privateIPBlocks []*net.IPNet
+
+func init() {
+	// Initialize private IP blocks for SSRF protection
+	privateRanges := []string{
+		"127.0.0.0/8",    // IPv4 loopback
+		"10.0.0.0/8",     // RFC1918 private
+		"172.16.0.0/12",  // RFC1918 private
+		"192.168.0.0/16", // RFC1918 private
+		"169.254.0.0/16", // Link local
+		"::1/128",        // IPv6 loopback
+		"fe80::/10",      // IPv6 link local
+		"fc00::/7",       // IPv6 unique local
+	}
+
+	for _, cidr := range privateRanges {
+		_, block, err := net.ParseCIDR(cidr)
+		if err == nil {
+			privateIPBlocks = append(privateIPBlocks, block)
+		}
+	}
+}
+
+// isPrivateIP checks if an IP address is in a private/internal network range
+func isPrivateIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+
+	// Check if it's a loopback address
+	if ip.IsLoopback() {
+		return true
+	}
+
+	// Check if it's a link-local address
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+
+	// Check against private CIDR blocks
+	for _, block := range privateIPBlocks {
+		if block.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsInternalURL checks if a URL points to an internal/private network
+func IsInternalURL(urlStr string) (bool, error) {
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return false, fmt.Errorf("%w: %v", ErrInvalidURL, err)
+	}
+
+	hostname := parsedURL.Hostname()
+	if hostname == "" {
+		return false, fmt.Errorf("%w: empty hostname", ErrInvalidURL)
+	}
+
+	// Check for localhost variants
+	lowerHost := strings.ToLower(hostname)
+	if lowerHost == "localhost" || strings.HasSuffix(lowerHost, ".localhost") {
+		return true, nil
+	}
+
+	// Resolve the hostname to IP addresses
+	ips, err := net.LookupIP(hostname)
+	if err != nil {
+		// If we can't resolve, treat as potentially internal for safety
+		return false, fmt.Errorf("cannot resolve hostname: %w", err)
+	}
+
+	// Check if any resolved IP is private/internal
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// ValidateDownloadURL validates that a URL is safe for downloading plugins.
+// It ensures the URL uses HTTPS and doesn't point to internal networks.
+func ValidateDownloadURL(urlStr string) error {
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidURL, err)
+	}
+
+	// Require HTTPS for security
+	if parsedURL.Scheme != "https" {
+		return fmt.Errorf("%w: got %s", ErrInsecureURL, parsedURL.Scheme)
+	}
+
+	// Check for internal/private network URLs
+	isInternal, err := IsInternalURL(urlStr)
+	if err != nil {
+		return fmt.Errorf("validating URL: %w", err)
+	}
+	if isInternal {
+		return fmt.Errorf("%w: %s", ErrInternalURL, parsedURL.Hostname())
+	}
+
+	return nil
+}
+
+// secureHTTPClient returns an HTTP client that validates redirect targets
+// to prevent SSRF attacks via redirects
+func secureHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Limit redirect chain length
+			if len(via) >= 10 {
+				return errors.New("too many redirects")
+			}
+
+			// Validate the redirect target URL
+			if err := ValidateDownloadURL(req.URL.String()); err != nil {
+				return fmt.Errorf("redirect to unsafe URL blocked: %w", err)
+			}
+
+			return nil
+		},
+	}
+}
+
+// MaxPluginDownloadSize is the maximum allowed size for plugin downloads (50MB)
+const MaxPluginDownloadSize int64 = 50 * 1024 * 1024
+
+// PluginDownloadInfo contains integrity information for plugin downloads
+type PluginDownloadInfo struct {
+	URL    string `json:"url"`
+	SHA256 string `json:"sha256"`
+	Size   int64  `json:"size"`
+}
 
 // MarketplacePlugin represents a plugin available in the marketplace
 type MarketplacePlugin struct {
@@ -35,6 +191,8 @@ type MarketplacePlugin struct {
 	Status       MarketplacePluginStatus `json:"status"`
 	Featured     bool                    `json:"featured"`
 	Premium      bool                    `json:"premium"`
+	// DownloadInfo contains integrity verification data for the plugin binary
+	DownloadInfo *PluginDownloadInfo `json:"download_info,omitempty"`
 }
 
 // MarketplacePrice represents pricing information (always free for open source)
@@ -90,12 +248,18 @@ type MarketplaceConfig struct {
 }
 
 // NewMarketplaceClient creates a new marketplace client
-func NewMarketplaceClient(config MarketplaceConfig) *MarketplaceClient {
+// Returns an error if the base URL does not use HTTPS
+func NewMarketplaceClient(config MarketplaceConfig) (*MarketplaceClient, error) {
 	if config.Timeout == 0 {
 		config.Timeout = 30 * time.Second
 	}
 	if config.CacheTTL == 0 {
 		config.CacheTTL = 10 * time.Minute
+	}
+
+	// Enforce HTTPS for security - prevent MITM attacks on plugin downloads
+	if config.BaseURL != "" && !strings.HasPrefix(config.BaseURL, "https://") {
+		return nil, fmt.Errorf("marketplace URL must use HTTPS for security: %s", config.BaseURL)
 	}
 
 	return &MarketplaceClient{
@@ -106,7 +270,7 @@ func NewMarketplaceClient(config MarketplaceConfig) *MarketplaceClient {
 		},
 		cache:        make(map[string]*MarketplacePlugin),
 		userLicenses: make(map[string][]string),
-	}
+	}, nil
 }
 
 // ListPlugins retrieves available plugins from marketplace
@@ -252,16 +416,23 @@ func (mc *MarketplaceClient) GetPlugin(pluginID string) (*MarketplacePlugin, err
 	return &plugin, nil
 }
 
-// DownloadPlugin downloads a plugin binary (always free for open source)
+// DownloadPlugin downloads a plugin binary with integrity verification (always free for open source)
+// It validates the download URL for SSRF protection before making the request.
 func (mc *MarketplaceClient) DownloadPlugin(pluginID, version, platform string) ([]byte, error) {
-	// All plugins are free in open source model
-	_, err := mc.GetPlugin(pluginID)
+	// Get plugin info including checksum data
+	pluginInfo, err := mc.GetPlugin(pluginID)
 	if err != nil {
 		return nil, err
 	}
 
-	url := fmt.Sprintf("%s/api/v1/plugins/%s/download", mc.baseURL, pluginID)
-	req, err := http.NewRequest("GET", url, nil)
+	downloadURL := fmt.Sprintf("%s/api/v1/plugins/%s/download", mc.baseURL, pluginID)
+
+	// Validate URL for SSRF protection before making the request
+	if err := ValidateDownloadURL(downloadURL); err != nil {
+		return nil, fmt.Errorf("invalid download URL: %w", err)
+	}
+
+	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
@@ -279,7 +450,9 @@ func (mc *MarketplaceClient) DownloadPlugin(pluginID, version, platform string) 
 		req.Header.Set("Authorization", "Bearer "+mc.apiKey)
 	}
 
-	resp, err := mc.httpClient.Do(req)
+	// Use secure HTTP client that validates redirect targets
+	client := secureHTTPClient(mc.httpClient.Timeout)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("download request failed: %w", err)
 	}
@@ -289,7 +462,70 @@ func (mc *MarketplaceClient) DownloadPlugin(pluginID, version, platform string) 
 		return nil, fmt.Errorf("download failed: %d", resp.StatusCode)
 	}
 
-	return io.ReadAll(resp.Body)
+	// Read response with size limit to prevent memory exhaustion attacks
+	limitedReader := io.LimitReader(resp.Body, MaxPluginDownloadSize+1)
+	data, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, fmt.Errorf("reading download response: %w", err)
+	}
+
+	// Check if we hit the size limit
+	if int64(len(data)) > MaxPluginDownloadSize {
+		return nil, fmt.Errorf("plugin download exceeds maximum allowed size of %d bytes", MaxPluginDownloadSize)
+	}
+
+	// Verify size if download info is available
+	if pluginInfo.DownloadInfo != nil && pluginInfo.DownloadInfo.Size > 0 {
+		if int64(len(data)) != pluginInfo.DownloadInfo.Size {
+			return nil, fmt.Errorf("plugin size mismatch: expected %d bytes, got %d bytes",
+				pluginInfo.DownloadInfo.Size, len(data))
+		}
+	}
+
+	// Verify checksum if available
+	if pluginInfo.DownloadInfo != nil && pluginInfo.DownloadInfo.SHA256 != "" {
+		if err := verifyChecksum(data, pluginInfo.DownloadInfo.SHA256); err != nil {
+			return nil, fmt.Errorf("plugin integrity verification failed: %w", err)
+		}
+		log.Printf("Plugin %s checksum verified successfully", pluginID)
+	} else {
+		// Log warning if no checksum is available (backwards compatibility)
+		log.Printf("WARNING: Plugin %s does not have checksum verification data. "+
+			"Consider updating the marketplace server to provide checksums for security.", pluginID)
+	}
+
+	return data, nil
+}
+
+// verifyChecksum verifies the SHA256 checksum of data against expected hash
+func verifyChecksum(data []byte, expectedHash string) error {
+	if expectedHash == "" {
+		return fmt.Errorf("expected hash is empty")
+	}
+
+	actualHash := sha256.Sum256(data)
+	actualHashStr := hex.EncodeToString(actualHash[:])
+
+	// Use constant-time comparison to prevent timing attacks
+	if !constantTimeEqual(actualHashStr, expectedHash) {
+		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHash, actualHashStr)
+	}
+
+	return nil
+}
+
+// constantTimeEqual performs constant-time comparison of two strings
+// to prevent timing attacks during checksum verification
+func constantTimeEqual(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	var result byte
+	for i := 0; i < len(a); i++ {
+		result |= a[i] ^ b[i]
+	}
+	return result == 0
 }
 
 // Note: Purchase functionality removed - all plugins are free in open source model

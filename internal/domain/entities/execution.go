@@ -150,3 +150,45 @@ var (
 	ErrLanguageNotFound   = ExecutionError{Type: "language_not_found", Message: "language runtime not found"}
 	ErrUntrustedExecution = ExecutionError{Type: "untrusted_execution", Message: "code execution disabled in untrusted environment"}
 )
+
+// BlockedCommandError represents a security error when dangerous commands are detected
+type BlockedCommandError struct {
+	Command  string   // The specific command or pattern that was blocked
+	Commands []string // All blocked commands found
+	Message  string   // Human-readable error message
+}
+
+// Error implements the error interface
+func (e *BlockedCommandError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return "blocked dangerous command: " + e.Command
+}
+
+// NewBlockedCommandError creates a new BlockedCommandError with the detected commands
+func NewBlockedCommandError(commands []string) *BlockedCommandError {
+	if len(commands) == 0 {
+		return nil
+	}
+
+	msg := "execution blocked: dangerous command(s) detected: "
+	for i, cmd := range commands {
+		if i > 0 {
+			msg += ", "
+		}
+		msg += "'" + cmd + "'"
+	}
+
+	return &BlockedCommandError{
+		Command:  commands[0],
+		Commands: commands,
+		Message:  msg,
+	}
+}
+
+// IsBlockedCommandError checks if an error is a BlockedCommandError
+func IsBlockedCommandError(err error) bool {
+	_, ok := err.(*BlockedCommandError)
+	return ok
+}

@@ -10,6 +10,22 @@ import (
 	pluginapi "github.com/fredcamaral/slicli/pkg/plugin"
 )
 
+const (
+	// executorDefaultMaxConcurrent is the default maximum number of concurrent plugin executions.
+	// 10 allows parallel processing without overwhelming system resources.
+	executorDefaultMaxConcurrent = 10
+
+	// executorCacheTTL is the time-to-live for cached plugin execution results.
+	// 5 minutes balances performance gains from caching with freshness for
+	// frequently edited content.
+	executorCacheTTL = 5 * time.Minute
+
+	// executorDefaultJobTimeout is the default timeout for individual plugin execution jobs.
+	// 5 seconds prevents runaway plugins from blocking the system while allowing
+	// sufficient time for complex rendering operations.
+	executorDefaultJobTimeout = 5 * time.Second
+)
+
 // ConcurrentExecutor provides concurrent plugin execution with optimizations
 type ConcurrentExecutor struct {
 	maxConcurrent int
@@ -54,7 +70,7 @@ type cachedResult struct {
 // NewConcurrentExecutor creates a new concurrent executor
 func NewConcurrentExecutor(maxConcurrent int) *ConcurrentExecutor {
 	if maxConcurrent <= 0 {
-		maxConcurrent = 10
+		maxConcurrent = executorDefaultMaxConcurrent
 	}
 
 	return &ConcurrentExecutor{
@@ -112,8 +128,8 @@ func (e *ConcurrentExecutor) executeJob(ctx context.Context, job ExecutionJob) E
 	cacheKey := e.generateCacheKey(job.Plugin.Metadata.Name, job.Input)
 	if cached, found := e.resultCache.Load(cacheKey); found {
 		if cachedItem, ok := cached.(cachedResult); ok {
-			// Check if cache is still valid (5 minutes TTL)
-			if time.Since(cachedItem.timestamp) < 5*time.Minute {
+			// Check if cache is still valid using the configured TTL
+			if time.Since(cachedItem.timestamp) < executorCacheTTL {
 				result := cachedItem.result
 				result.Cached = true
 				return result
@@ -263,8 +279,8 @@ func (e *ConcurrentExecutor) ClearExpiredCache() {
 
 	e.resultCache.Range(func(key, value interface{}) bool {
 		if cached, ok := value.(cachedResult); ok {
-			// If result is older than 5 minutes, remove it
-			if now.Sub(cached.timestamp) > 5*time.Minute {
+			// Remove entries older than the configured cache TTL
+			if now.Sub(cached.timestamp) > executorCacheTTL {
 				e.resultCache.Delete(key)
 			}
 		}
@@ -296,7 +312,7 @@ func (e *ConcurrentExecutor) OptimizeForContent(plugins []entities.PluginInstanc
 			Input:     pluginapi.PluginInput{Content: content},
 			Result:    make(chan ExecutionResult, 1),
 			StartTime: time.Now(),
-			Timeout:   5 * time.Second,
+			Timeout:   executorDefaultJobTimeout,
 		}
 
 		// Categorize based on plugin type or content analysis
@@ -330,7 +346,7 @@ func (e *ConcurrentExecutor) SetMaxConcurrent(max int) {
 	defer e.mu.Unlock()
 
 	if max <= 0 {
-		max = 10
+		max = executorDefaultMaxConcurrent
 	}
 
 	e.maxConcurrent = max

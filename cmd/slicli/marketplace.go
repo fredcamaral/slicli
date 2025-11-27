@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -16,6 +18,82 @@ import (
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/spf13/cobra"
 )
+
+// ErrInvalidPluginID is returned when a plugin ID is not safe
+var ErrInvalidPluginID = errors.New("invalid plugin ID")
+
+// pluginIDPattern defines the allowed pattern for plugin IDs
+// Only alphanumeric characters, dashes, and underscores are allowed
+var pluginIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+
+// maxPluginIDLength is the maximum allowed length for plugin IDs
+const maxPluginIDLength = 64
+
+// ValidatePluginID validates that a plugin ID is safe for use in file paths.
+// It checks for:
+// - Only alphanumeric characters, dashes, and underscores
+// - No path separators or ".." sequences
+// - Maximum length of 64 characters
+func ValidatePluginID(id string) error {
+	if id == "" {
+		return fmt.Errorf("%w: empty plugin ID", ErrInvalidPluginID)
+	}
+
+	if len(id) > maxPluginIDLength {
+		return fmt.Errorf("%w: plugin ID exceeds maximum length of %d characters", ErrInvalidPluginID, maxPluginIDLength)
+	}
+
+	// Check for path traversal attempts
+	if strings.Contains(id, "..") {
+		return fmt.Errorf("%w: plugin ID contains path traversal sequence", ErrInvalidPluginID)
+	}
+
+	// Check for path separators
+	if strings.ContainsAny(id, "/\\") {
+		return fmt.Errorf("%w: plugin ID contains path separator", ErrInvalidPluginID)
+	}
+
+	// Check against allowed pattern
+	if !pluginIDPattern.MatchString(id) {
+		return fmt.Errorf("%w: plugin ID contains invalid characters (only alphanumeric, dash, underscore allowed)", ErrInvalidPluginID)
+	}
+
+	return nil
+}
+
+// SafePluginPath constructs a safe path for a plugin file and verifies
+// the resulting path is within the expected base directory.
+func SafePluginPath(baseDir, pluginID string) (string, error) {
+	// Validate the plugin ID first
+	if err := ValidatePluginID(pluginID); err != nil {
+		return "", err
+	}
+
+	// Construct the path
+	pluginPath := filepath.Join(baseDir, pluginID+".so")
+
+	// Get absolute paths for comparison
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", fmt.Errorf("resolving base directory: %w", err)
+	}
+
+	absPlugin, err := filepath.Abs(pluginPath)
+	if err != nil {
+		return "", fmt.Errorf("resolving plugin path: %w", err)
+	}
+
+	// Clean the paths
+	absBase = filepath.Clean(absBase)
+	absPlugin = filepath.Clean(absPlugin)
+
+	// Verify the plugin path is within the base directory
+	if !strings.HasPrefix(absPlugin, absBase+string(filepath.Separator)) && absPlugin != absBase {
+		return "", fmt.Errorf("%w: path escapes base directory", ErrInvalidPluginID)
+	}
+
+	return absPlugin, nil
+}
 
 var marketplaceCmd = &cobra.Command{
 	Use:   "marketplace",
@@ -118,14 +196,30 @@ func getMarketplaceClientWithConfig(appConfig *entities.Config) (*plugin.Marketp
 		}
 	}
 
-	// Create marketplace configuration using config system
+	// Get marketplace URL and validate it (handles env var override)
+	marketplaceURL := appConfig.Plugins.GetMarketplaceURL()
+
+	// Validate the URL (especially important for environment variable overrides)
+	if err := entities.ValidateMarketplaceURL(marketplaceURL); err != nil {
+		return nil, fmt.Errorf("invalid marketplace configuration: %w", err)
+	}
+
+	// Create marketplace configuration using config system.
+	// Security note: API key from environment variable. For production deployments
+	// with sensitive credentials, consider using system keychain (e.g., macOS Keychain,
+	// Windows Credential Manager, or Linux Secret Service) via a secrets manager library.
 	marketplaceConfig := plugin.MarketplaceConfig{
-		BaseURL: appConfig.Plugins.GetMarketplaceURL(),
+		BaseURL: marketplaceURL,
 		APIKey:  os.Getenv("SLICLI_API_KEY"),
 		UserID:  getUserID(),
 	}
 
-	return plugin.NewMarketplaceClient(marketplaceConfig), nil
+	client, err := plugin.NewMarketplaceClient(marketplaceConfig)
+	if err != nil {
+		return nil, fmt.Errorf("creating marketplace client: %w", err)
+	}
+
+	return client, nil
 }
 
 func getUserID() string {
@@ -196,6 +290,11 @@ func runMarketplaceSearch(cmd *cobra.Command, args []string) error {
 func runMarketplaceInstall(cmd *cobra.Command, args []string) error {
 	pluginID := args[0]
 
+	// Validate plugin ID before any operations to prevent path injection
+	if err := ValidatePluginID(pluginID); err != nil {
+		return fmt.Errorf("invalid plugin ID: %w", err)
+	}
+
 	client, err := getMarketplaceClient()
 	if err != nil {
 		return fmt.Errorf("failed to create marketplace client: %w", err)
@@ -231,13 +330,17 @@ func runMarketplaceInstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create plugins directory: %w", err)
 	}
 
-	// Save plugin file
-	pluginPath := filepath.Join(pluginsDir, pluginID+".so")
+	// Construct safe plugin path with path traversal protection
+	pluginPath, err := SafePluginPath(pluginsDir, pluginID)
+	if err != nil {
+		return fmt.Errorf("invalid plugin path: %w", err)
+	}
+
 	if err := os.WriteFile(pluginPath, pluginData, 0600); err != nil {
 		return fmt.Errorf("failed to save plugin: %w", err)
 	}
 
-	fmt.Printf("✓ Successfully installed %s to %s\n", pluginInfo.Name, pluginPath)
+	fmt.Printf("Successfully installed %s to %s\n", pluginInfo.Name, pluginPath)
 	fmt.Printf("Use it in your presentations with: <!-- plugin: %s -->\n", pluginID)
 
 	return nil

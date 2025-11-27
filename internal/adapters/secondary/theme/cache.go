@@ -8,12 +8,15 @@ import (
 	"github.com/fredcamaral/slicli/internal/domain/ports"
 )
 
-// MemoryCache is an in-memory theme cache
+// MemoryCache is an in-memory theme cache with TTL support and automatic cleanup
 type MemoryCache struct {
 	mu      sync.RWMutex
 	themes  map[string]*cachedTheme
 	maxSize int
 	ttl     time.Duration
+
+	// Cleanup goroutine control
+	done chan struct{}
 }
 
 // cachedTheme wraps a theme with cache metadata
@@ -30,6 +33,7 @@ func NewMemoryCache(maxSize int, ttl time.Duration) *MemoryCache {
 		themes:  make(map[string]*cachedTheme),
 		maxSize: maxSize,
 		ttl:     ttl,
+		done:    nil, // cleanup not started by default
 	}
 }
 
@@ -147,6 +151,68 @@ type CacheStatsExtended struct {
 	Active    int           // Number of non-expired themes
 	TotalHits int           // Total cache hits
 	TTL       time.Duration // Time to live for cached themes
+}
+
+// StartCleanupTimer starts a background goroutine that periodically removes expired entries.
+// Returns a cleanup function that should be called to stop the timer.
+// If cleanup is already running, this is a no-op and returns an empty function.
+func (c *MemoryCache) StartCleanupTimer(interval time.Duration) func() {
+	c.mu.Lock()
+	if c.done != nil {
+		// Cleanup already running
+		c.mu.Unlock()
+		return func() {}
+	}
+	c.done = make(chan struct{})
+	c.mu.Unlock()
+
+	ticker := time.NewTicker(interval)
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				c.cleanupExpired()
+			case <-c.done:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+
+	return func() {
+		c.Stop()
+	}
+}
+
+// Stop stops the cleanup goroutine if it's running.
+// Safe to call multiple times.
+func (c *MemoryCache) Stop() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.done != nil {
+		close(c.done)
+		c.done = nil
+	}
+}
+
+// cleanupExpired removes all expired entries from the cache
+func (c *MemoryCache) cleanupExpired() {
+	if c.ttl == 0 {
+		// No TTL configured, nothing to cleanup
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	for name, cached := range c.themes {
+		if !cached.expiresAt.IsZero() && now.After(cached.expiresAt) {
+			delete(c.themes, name)
+		}
+	}
 }
 
 // Ensure MemoryCache implements ThemeCache

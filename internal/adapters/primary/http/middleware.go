@@ -3,8 +3,29 @@ package http
 import (
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	// rateLimiterCleanupInterval is the interval for cleaning up stale rate limit entries.
+	// 5 minutes provides a balance between memory usage and cleanup overhead.
+	// Entries not accessed within this duration are removed from the rate limiter.
+	rateLimiterCleanupInterval = 5 * time.Minute
+
+	// rateLimitRequestsPerWindow is the maximum number of requests allowed per IP
+	// within the rate limit window. 100 requests per minute is sufficient for
+	// normal presentation viewing while preventing abuse.
+	rateLimitRequestsPerWindow = 100
+
+	// rateLimitWindow is the time window for rate limiting.
+	// Combined with rateLimitRequestsPerWindow, this enforces 100 req/min per IP.
+	rateLimitWindow = time.Minute
+
+	// rateLimitRetryAfterSeconds is the number of seconds clients should wait
+	// before retrying when rate limited.
+	rateLimitRetryAfterSeconds = "60"
 )
 
 // responseWriter wraps http.ResponseWriter to capture status code
@@ -97,6 +118,7 @@ type rateLimiter struct {
 	mu      sync.RWMutex
 	clients map[string]*clientInfo
 	cleanup time.Duration
+	done    chan struct{}
 }
 
 type clientInfo struct {
@@ -108,7 +130,8 @@ type clientInfo struct {
 func newRateLimiter() *rateLimiter {
 	rl := &rateLimiter{
 		clients: make(map[string]*clientInfo),
-		cleanup: 5 * time.Minute,
+		cleanup: rateLimiterCleanupInterval,
+		done:    make(chan struct{}),
 	}
 
 	// Start cleanup goroutine
@@ -117,20 +140,30 @@ func newRateLimiter() *rateLimiter {
 	return rl
 }
 
+// Stop stops the rate limiter cleanup goroutine
+func (rl *rateLimiter) Stop() {
+	close(rl.done)
+}
+
 // cleanupRoutine removes old client entries
 func (rl *rateLimiter) cleanupRoutine() {
 	ticker := time.NewTicker(rl.cleanup)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		rl.mu.Lock()
-		cutoff := time.Now().Add(-rl.cleanup)
-		for ip, info := range rl.clients {
-			if info.lastSeen.Before(cutoff) {
-				delete(rl.clients, ip)
+	for {
+		select {
+		case <-rl.done:
+			return
+		case <-ticker.C:
+			rl.mu.Lock()
+			cutoff := time.Now().Add(-rl.cleanup)
+			for ip, info := range rl.clients {
+				if info.lastSeen.Before(cutoff) {
+					delete(rl.clients, ip)
+				}
 			}
+			rl.mu.Unlock()
 		}
-		rl.mu.Unlock()
 	}
 }
 
@@ -174,17 +207,53 @@ func (rl *rateLimiter) isAllowed(ip string, limit int, window time.Duration) boo
 	return true
 }
 
-var globalRateLimiter = newRateLimiter()
+// globalRateLimiter is a package-level rate limiter for backward compatibility.
+// It is lazily initialized on first use to avoid starting a goroutine if not needed.
+// Use StopGlobalRateLimiter() during application shutdown to clean up.
+// Prefer using createRateLimitMiddleware with an injected rate limiter for proper cleanup.
+var (
+	globalRateLimiter     *rateLimiter
+	globalRateLimiterOnce sync.Once
+	globalRateLimiterMu   sync.Mutex
+)
 
-// rateLimitMiddleware implements rate limiting per IP
+// getGlobalRateLimiter returns the global rate limiter, initializing it on first use.
+func getGlobalRateLimiter() *rateLimiter {
+	globalRateLimiterOnce.Do(func() {
+		globalRateLimiter = newRateLimiter()
+	})
+	return globalRateLimiter
+}
+
+// StopGlobalRateLimiter stops the global rate limiter's cleanup goroutine.
+// This should be called during application shutdown to prevent goroutine leaks.
+// It is safe to call this function even if the global rate limiter was never initialized.
+func StopGlobalRateLimiter() {
+	globalRateLimiterMu.Lock()
+	defer globalRateLimiterMu.Unlock()
+	if globalRateLimiter != nil {
+		globalRateLimiter.Stop()
+		globalRateLimiter = nil
+	}
+	// Reset the Once so a new rate limiter can be created if needed (for testing)
+	globalRateLimiterOnce = sync.Once{}
+}
+
+// rateLimitMiddleware implements rate limiting per IP using global rate limiter.
+// Deprecated: Use createRateLimitMiddleware for proper resource cleanup.
 func rateLimitMiddleware(next http.Handler) http.Handler {
+	return createRateLimitMiddleware(next, getGlobalRateLimiter())
+}
+
+// createRateLimitMiddleware creates rate limiting middleware with an injected rate limiter
+func createRateLimitMiddleware(next http.Handler, rl *rateLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract IP address
 		ip := getClientIP(r)
 
-		// Check rate limit: 100 requests per minute
-		if !globalRateLimiter.isAllowed(ip, 100, time.Minute) {
-			w.Header().Set("Retry-After", "60")
+		// Check rate limit using configured constants
+		if !rl.isAllowed(ip, rateLimitRequestsPerWindow, rateLimitWindow) {
+			w.Header().Set("Retry-After", rateLimitRetryAfterSeconds)
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
@@ -196,17 +265,23 @@ func rateLimitMiddleware(next http.Handler) http.Handler {
 // getClientIP extracts the real client IP address
 func getClientIP(r *http.Request) string {
 	// Check X-Forwarded-For header first
+	// Format is: "client, proxy1, proxy2" - we want the first (client) IP
 	xff := r.Header.Get("X-Forwarded-For")
 	if xff != "" {
-		// Take the first IP in the list
-		if ip := net.ParseIP(xff); ip != nil {
-			return ip.String()
+		// X-Forwarded-For can be comma-separated list of IPs
+		parts := strings.Split(xff, ",")
+		if len(parts) > 0 {
+			clientIP := strings.TrimSpace(parts[0])
+			if ip := net.ParseIP(clientIP); ip != nil {
+				return ip.String()
+			}
 		}
 	}
 
 	// Check X-Real-IP header
 	xri := r.Header.Get("X-Real-IP")
 	if xri != "" {
+		xri = strings.TrimSpace(xri)
 		if ip := net.ParseIP(xri); ip != nil {
 			return ip.String()
 		}

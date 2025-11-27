@@ -2,15 +2,26 @@ package http
 
 import (
 	"context"
+	"log"
 	"sync"
+	"time"
 
 	"github.com/fredcamaral/slicli/internal/domain/ports"
 )
 
 // Connection represents a WebSocket connection
 type Connection struct {
-	ID   string
-	Send chan ports.UpdateEvent
+	ID        string
+	Send      chan ports.UpdateEvent
+	closeOnce sync.Once
+}
+
+// Close safely closes the connection's send channel exactly once.
+// It is safe to call this method multiple times.
+func (c *Connection) Close() {
+	c.closeOnce.Do(func() {
+		close(c.Send)
+	})
 }
 
 // ConnectionManager manages WebSocket connections
@@ -50,22 +61,34 @@ func (cm *ConnectionManager) Run(ctx context.Context) {
 			cm.mu.Lock()
 			if conn, ok := cm.connections[id]; ok {
 				delete(cm.connections, id)
-				close(conn.Send)
+				conn.Close()
 			}
 			cm.mu.Unlock()
 
 		case event := <-cm.broadcast:
+			var slowClients []string
 			cm.mu.RLock()
 			for _, conn := range cm.connections {
 				select {
 				case conn.Send <- event:
 				default:
-					// Client too slow, close connection
-					close(conn.Send)
-					delete(cm.connections, conn.ID)
+					// Client too slow, mark for removal
+					slowClients = append(slowClients, conn.ID)
 				}
 			}
 			cm.mu.RUnlock()
+
+			// Remove slow clients with write lock
+			if len(slowClients) > 0 {
+				cm.mu.Lock()
+				for _, id := range slowClients {
+					if conn, ok := cm.connections[id]; ok {
+						conn.Close()
+						delete(cm.connections, id)
+					}
+				}
+				cm.mu.Unlock()
+			}
 		}
 	}
 }
@@ -80,12 +103,20 @@ func (cm *ConnectionManager) Unregister(connID string) {
 	cm.unregister <- connID
 }
 
-// Broadcast sends an event to all connections
+// broadcastTimeout is the maximum time to wait when sending a broadcast event.
+// If the broadcast channel is full for longer than this duration, the event is dropped.
+const broadcastTimeout = 100 * time.Millisecond
+
+// Broadcast sends an event to all connections.
+// If the broadcast channel is full and cannot accept the event within broadcastTimeout,
+// the event is dropped and a warning is logged.
 func (cm *ConnectionManager) Broadcast(event ports.UpdateEvent) {
 	select {
 	case cm.broadcast <- event:
 	case <-cm.done:
 		// Manager is shutting down
+	case <-time.After(broadcastTimeout):
+		log.Printf("WARNING: broadcast event dropped due to backpressure (type: %s)", event.Type)
 	}
 }
 
@@ -95,7 +126,7 @@ func (cm *ConnectionManager) CloseAll() {
 	defer cm.mu.Unlock()
 
 	for id, conn := range cm.connections {
-		close(conn.Send)
+		conn.Close()
 		delete(cm.connections, id)
 	}
 }

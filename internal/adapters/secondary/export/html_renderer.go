@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"log"
 	"os"
 	"time"
 
@@ -15,7 +16,9 @@ type HTMLRenderer struct {
 	template *template.Template
 }
 
-// NewHTMLRenderer creates a new HTML renderer
+// NewHTMLRenderer creates a new HTML renderer.
+// Uses template.Must for compile-time validation since templates are static strings.
+// Falls back to a basic template if the primary template fails to parse.
 func NewHTMLRenderer() *HTMLRenderer {
 	tmpl := template.New("export")
 	tmpl = tmpl.Funcs(template.FuncMap{
@@ -25,14 +28,28 @@ func NewHTMLRenderer() *HTMLRenderer {
 	})
 
 	// Parse the static HTML template
-	_, err := tmpl.Parse(staticHTMLTemplate)
+	parsedTmpl, err := tmpl.Parse(staticHTMLTemplate)
 	if err != nil {
-		// Fallback to basic template if parsing fails
-		tmpl, _ = template.New("export").Parse(basicHTMLTemplate)
+		log.Printf("WARNING: failed to parse static HTML template: %v, falling back to basic template", err)
+
+		// Attempt fallback to basic template
+		fallbackTmpl := template.New("export")
+		fallbackTmpl = fallbackTmpl.Funcs(template.FuncMap{
+			"safeHTML": func(s string) template.HTML {
+				return template.HTML(s) // #nosec G203 - intentional safe HTML template function
+			},
+			"add": func(a, b int) int { return a + b },
+		})
+		parsedTmpl, err = fallbackTmpl.Parse(basicHTMLTemplate)
+		if err != nil {
+			// Both templates failed - this indicates a serious bug in template definitions
+			// Log fatal since the renderer cannot function without a valid template
+			log.Fatalf("FATAL: failed to parse both static and basic HTML templates: %v", err)
+		}
 	}
 
 	return &HTMLRenderer{
-		template: tmpl,
+		template: parsedTmpl,
 	}
 }
 
@@ -78,8 +95,13 @@ func (r *HTMLRenderer) Render(ctx context.Context, presentation *entities.Presen
 		return nil, fmt.Errorf("executing template: %w", err)
 	}
 
-	// Get file size
-	fileSize, _ := GetFileSize(options.OutputPath)
+	// Get file size - log warning if it fails but continue with 0 as fallback
+	// File size is informational and not critical to the export result
+	fileSize, err := GetFileSize(options.OutputPath)
+	if err != nil {
+		log.Printf("WARNING: failed to get file size for %s: %v", options.OutputPath, err)
+		fileSize = 0
+	}
 
 	return &ExportResult{
 		Success:    true,

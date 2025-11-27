@@ -218,12 +218,14 @@ func TestValidateBrowserSetup(t *testing.T) {
 			expectAvailable: false,
 		},
 		{
-			name: "auto-detect executable (will likely fail in test env)",
+			name: "auto-detect executable (environment-dependent)",
 			config: BrowserConfig{
 				ExecutablePath: "",
 			},
-			expectError:     true,
-			expectAvailable: false,
+			// This test is environment-dependent: passes if Chrome is found OR not found
+			// We just verify the function returns a consistent result
+			expectError:     false, // Will be checked conditionally
+			expectAvailable: false, // Will be checked conditionally
 		},
 	}
 
@@ -232,6 +234,19 @@ func TestValidateBrowserSetup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ValidateBrowserSetup(ctx, tt.config)
+
+			// For auto-detect test, verify consistency rather than specific outcome
+			if tt.name == "auto-detect executable (environment-dependent)" {
+				// If browser is available, error should be empty
+				// If browser is not available, error should explain why
+				if result.Available {
+					assert.Empty(t, result.Error, "Available browser should have no error")
+					assert.NotEmpty(t, result.ExecutablePath, "Available browser should have path")
+				} else {
+					assert.NotEmpty(t, result.Error, "Unavailable browser should have error message")
+				}
+				return
+			}
 
 			assert.Equal(t, tt.expectAvailable, result.Available)
 

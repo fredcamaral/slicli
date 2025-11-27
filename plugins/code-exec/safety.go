@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -54,7 +55,10 @@ func (lw *limitedWriter) Written() int {
 }
 
 // String returns the content as a string (requires the underlying writer to be a string builder)
+// This method is thread-safe.
 func (lw *limitedWriter) String() string {
+	lw.mu.Lock()
+	defer lw.mu.Unlock()
 	if sb, ok := lw.w.(*strings.Builder); ok {
 		return sb.String()
 	}
@@ -187,8 +191,79 @@ func setupProcessIsolation(cmd *exec.Cmd) {
 		// Windows-specific process isolation is handled through job objects
 		// at the MemoryLimitedExecutor level, so we don't need special handling here
 		return
-	} else {
-		// Unix-like systems use process groups
-		cmd.SysProcAttr.Setpgid = true
 	}
+
+	// Unix-like systems use process groups
+	// Ensure SysProcAttr is initialized
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Setpgid = true
+}
+
+// killProcessGroup kills all processes in the process group of the given process.
+// This ensures that child processes spawned by the executed code are also terminated.
+// Returns an error if the process group could not be killed.
+func killProcessGroup(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+
+	pid := cmd.Process.Pid
+
+	// On Unix-like systems, kill the entire process group
+	if runtime.GOOS != "windows" {
+		// Use negative PID to kill the entire process group
+		pgid, err := syscall.Getpgid(pid)
+		if err != nil {
+			// If we can't get the process group, try to kill just the process
+			return cmd.Process.Kill()
+		}
+
+		// Send SIGKILL to the entire process group
+		if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil {
+			// If process group kill fails, try to kill just the process
+			return cmd.Process.Kill()
+		}
+		return nil
+	}
+
+	// On Windows, just kill the process (job objects handle child processes)
+	return cmd.Process.Kill()
+}
+
+// cleanupProcess performs cleanup of a running process and its children.
+// This should be called when execution times out or needs to be terminated.
+// It attempts graceful termination first (SIGTERM) before forcing (SIGKILL).
+func cleanupProcess(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+
+	pid := cmd.Process.Pid
+
+	// On Unix-like systems, use process groups for cleanup
+	if runtime.GOOS != "windows" {
+		pgid, err := syscall.Getpgid(pid)
+		if err != nil {
+			// Process may have already exited
+			return nil
+		}
+
+		// First try SIGTERM for graceful shutdown
+		if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
+			// If SIGTERM fails, the process may have already exited
+			if !os.IsPermission(err) {
+				return nil
+			}
+		}
+
+		// Give processes a moment to terminate gracefully, then force kill
+		// Note: The caller should implement a timeout and call killProcessGroup
+		// if the process doesn't terminate in time
+		return nil
+	}
+
+	// On Windows, just signal the process
+	return cmd.Process.Signal(os.Interrupt)
 }

@@ -24,8 +24,95 @@ import (
 
 	"github.com/fredcamaral/slicli/internal/adapters/secondary/browser"
 	"github.com/fredcamaral/slicli/internal/adapters/secondary/config"
+	"github.com/fredcamaral/slicli/internal/adapters/secondary/sanitizer"
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 )
+
+// External CDN URLs for third-party libraries.
+// These are centralized here to make updates easier and to track dependencies.
+const (
+	// MermaidCDN is the CDN URL for the Mermaid.js diagram library
+	MermaidCDN = "https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"
+	// PrismCoreCDN is the CDN URL for the PrismJS core syntax highlighting library
+	PrismCoreCDN = "https://unpkg.com/prismjs@1/components/prism-core.min.js"
+	// PrismAutoloaderCDN is the CDN URL for the PrismJS language autoloader
+	PrismAutoloaderCDN = "https://unpkg.com/prismjs@1/plugins/autoloader/prism-autoloader.min.js"
+	// PrismThemeCDN is the CDN URL for the default PrismJS theme stylesheet
+	PrismThemeCDN = "https://unpkg.com/prismjs@1/themes/prism.css"
+)
+
+// ErrPathTraversal is returned when a path contains traversal sequences
+var ErrPathTraversal = errors.New("path traversal detected")
+
+// ErrInvalidAssetName is returned when an asset name contains invalid characters
+var ErrInvalidAssetName = errors.New("invalid asset name")
+
+// validAssetNamePattern defines allowed characters in asset names
+// Only alphanumeric, dashes, underscores, and dots are allowed
+var validAssetNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
+// ValidateAssetName validates that an asset name is safe for file serving.
+// It checks for:
+// - Only alphanumeric characters, dashes, underscores, and dots
+// - No path separators or ".." sequences
+// - No null bytes or other control characters
+func ValidateAssetName(name string) error {
+	if name == "" {
+		return fmt.Errorf("%w: empty name", ErrInvalidAssetName)
+	}
+
+	// Check for path traversal
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("%w: contains '..'", ErrPathTraversal)
+	}
+
+	// Check for path separators
+	if strings.ContainsAny(name, "/\\") {
+		return fmt.Errorf("%w: contains path separator", ErrInvalidAssetName)
+	}
+
+	// Check for null bytes
+	if strings.ContainsRune(name, 0) {
+		return fmt.Errorf("%w: contains null byte", ErrInvalidAssetName)
+	}
+
+	// Validate against pattern
+	if !validAssetNamePattern.MatchString(name) {
+		return fmt.Errorf("%w: contains invalid characters", ErrInvalidAssetName)
+	}
+
+	return nil
+}
+
+// SafeFilePath constructs a safe file path and verifies it stays within the base directory.
+// Returns the absolute path if safe, or an error if the path would escape the base directory.
+func SafeFilePath(baseDir, requestedPath string) (string, error) {
+	// Get absolute path of base directory
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", fmt.Errorf("resolving base directory: %w", err)
+	}
+
+	// Construct the full path
+	fullPath := filepath.Join(absBase, requestedPath)
+
+	// Get absolute path of the result
+	absPath, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("resolving path: %w", err)
+	}
+
+	// Clean both paths
+	absBase = filepath.Clean(absBase)
+	absPath = filepath.Clean(absPath)
+
+	// Verify the resolved path is within the base directory
+	if !strings.HasPrefix(absPath, absBase+string(filepath.Separator)) && absPath != absBase {
+		return "", fmt.Errorf("%w: path escapes base directory", ErrPathTraversal)
+	}
+
+	return absPath, nil
+}
 
 var (
 	// Serve command flags
@@ -246,18 +333,51 @@ func createHTTPServer(config *entities.Config, htmlContent string) *http.Server 
 
 	// Serve static assets
 	mux.HandleFunc("/assets/", createAssetsHandler())
-	
+
 	// Serve theme assets
 	mux.HandleFunc("/themes/", createThemeAssetsHandler())
 
-	// Create HTTP server using configuration values
+	// Create HTTP server using configuration values with security middleware
 	return &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port),
-		Handler:      mux,
+		Handler:      securityMiddleware(mux),
 		ReadTimeout:  config.Server.GetReadTimeout(),
 		WriteTimeout: config.Server.GetWriteTimeout(),
 		IdleTimeout:  60 * time.Second,
 	}
+}
+
+// securityMiddleware adds security headers to all HTTP responses
+func securityMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Prevent clickjacking
+		w.Header().Set("X-Frame-Options", "DENY")
+
+		// Prevent MIME type sniffing
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
+		// Enable XSS filter in browsers
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+
+		// Content Security Policy - restrict resource loading
+		// Allow self, inline styles/scripts (needed for presentation), and CDN resources for Mermaid/Prism
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; "+
+				"script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "+
+				"style-src 'self' 'unsafe-inline' https://unpkg.com; "+
+				"img-src 'self' data: https:; "+
+				"font-src 'self' data:; "+
+				"connect-src 'self'; "+
+				"frame-ancestors 'none'")
+
+		// Referrer policy for privacy
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Permissions policy (formerly Feature-Policy)
+		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // createPresentationHandler creates the handler for serving presentation content
@@ -277,13 +397,13 @@ func createAssetsHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Security: Clean and validate the path
 		cleanPath := filepath.Clean(r.URL.Path)
-		
+
 		// Prevent path traversal attacks
 		if strings.Contains(cleanPath, "..") {
 			http.NotFound(w, r)
 			return
 		}
-		
+
 		// Check if it's a known asset path from web/assets
 		switch cleanPath {
 		case "/assets/style.css":
@@ -311,71 +431,144 @@ func createAssetsHandler() http.HandlerFunc {
 				}
 			}
 		default:
-			// Try to serve from web/assets directory
-			assetPath := filepath.Join("web", strings.TrimPrefix(cleanPath, "/"))
-			
+			// Parse the path components and validate each one
+			pathAfterAssets := strings.TrimPrefix(cleanPath, "/assets/")
+			if pathAfterAssets == "" || pathAfterAssets == cleanPath {
+				http.NotFound(w, r)
+				return
+			}
+
+			// Validate each path component
+			pathParts := strings.Split(pathAfterAssets, "/")
+			for _, part := range pathParts {
+				if part == "" {
+					continue
+				}
+				if err := ValidateAssetName(part); err != nil {
+					log.Printf("[WARN] Invalid asset path component '%s': %v", part, err)
+					http.NotFound(w, r)
+					return
+				}
+			}
+
+			// Use SafeFilePath to construct and validate the path
+			safePath, err := SafeFilePath("web/assets", pathAfterAssets)
+			if err != nil {
+				log.Printf("[WARN] Path validation failed for '%s': %v", pathAfterAssets, err)
+				http.NotFound(w, r)
+				return
+			}
+
 			// Check if file exists and is not a directory
-			fileInfo, err := os.Stat(assetPath)
+			fileInfo, err := os.Stat(safePath)
 			if err != nil || fileInfo.IsDir() {
 				http.NotFound(w, r)
 				return
 			}
-			
+
 			// Set appropriate content type
 			setContentType(w, cleanPath)
-			
+
 			// Serve the file
-			http.ServeFile(w, r, assetPath)
+			http.ServeFile(w, r, safePath)
 		}
 	}
 }
 
 // createThemeAssetsHandler creates the handler for serving theme assets
+// It implements strict path validation to prevent directory traversal attacks.
 func createThemeAssetsHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Security: Clean and validate the path
+		// Security: Clean the path
 		cleanPath := filepath.Clean(r.URL.Path)
-		
+
 		// Prevent path traversal attacks
 		if strings.Contains(cleanPath, "..") {
 			http.NotFound(w, r)
 			return
 		}
-		
+
 		// Remove /themes/ prefix to get the actual theme path
 		themePath := strings.TrimPrefix(cleanPath, "/themes/")
-		
-		// Try multiple possible theme locations
-		possiblePaths := []string{
-			filepath.Join("themes", themePath),                    // Current directory
-			filepath.Join("..", "..", "themes", themePath),       // Two levels up (when in subdirectory)
-			filepath.Join(os.Getenv("HOME"), ".slicli", "themes", themePath), // User home
-		}
-		
-		var fullPath string
-		var fileInfo os.FileInfo
-		var err error
-		
-		// Find the first existing path
-		for _, path := range possiblePaths {
-			fileInfo, err = os.Stat(path)
-			if err == nil && !fileInfo.IsDir() {
-				fullPath = path
-				break
-			}
-		}
-		
-		// If no valid path found, return 404
-		if fullPath == "" {
+		if themePath == "" {
 			http.NotFound(w, r)
 			return
 		}
-		
+
+		// Split the path into theme name and asset path
+		parts := strings.SplitN(themePath, "/", 2)
+		if len(parts) == 0 {
+			http.NotFound(w, r)
+			return
+		}
+
+		themeName := parts[0]
+		var assetPath string
+		if len(parts) > 1 {
+			assetPath = parts[1]
+		}
+
+		// Validate theme name (only alphanumeric, dashes, underscores)
+		if err := ValidateAssetName(themeName); err != nil {
+			log.Printf("[WARN] Invalid theme name '%s': %v", themeName, err)
+			http.NotFound(w, r)
+			return
+		}
+
+		// Validate each component of the asset path
+		if assetPath != "" {
+			assetParts := strings.Split(assetPath, "/")
+			for _, part := range assetParts {
+				if part == "" {
+					continue
+				}
+				if err := ValidateAssetName(part); err != nil {
+					log.Printf("[WARN] Invalid asset path component '%s': %v", part, err)
+					http.NotFound(w, r)
+					return
+				}
+			}
+		}
+
+		// Possible theme base directories
+		baseDirectories := []string{
+			"themes", // Current directory
+			filepath.Join(os.Getenv("HOME"), ".slicli", "themes"), // User home
+		}
+
+		var safePath string
+		var found bool
+
+		// Try each base directory with proper path validation
+		for _, baseDir := range baseDirectories {
+			// Construct the safe path and verify it's within the base directory
+			candidatePath, err := SafeFilePath(filepath.Join(baseDir, themeName), assetPath)
+			if err != nil {
+				continue // Path validation failed, try next base
+			}
+
+			// Check if file exists and is not a directory
+			fileInfo, err := os.Stat(candidatePath)
+			if err != nil || fileInfo.IsDir() {
+				continue // File doesn't exist or is directory, try next base
+			}
+
+			safePath = candidatePath
+			found = true
+			break
+		}
+
+		// If no valid path found, return 404
+		if !found {
+			http.NotFound(w, r)
+			return
+		}
+
 		// Set appropriate content type
 		setContentType(w, cleanPath)
-		
+
 		// Serve the file
-		http.ServeFile(w, r, fullPath)
+		http.ServeFile(w, r, safePath)
 	}
 }
 
@@ -508,6 +701,7 @@ func handleServerShutdown(server *http.Server, serverErr chan error, config *ent
 
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logger.Error("Error during shutdown: %v", err)
+			return fmt.Errorf("server shutdown: %w", err)
 		}
 
 		return nil
@@ -651,7 +845,7 @@ func mergeMetadataConfig(target, source *entities.Config) {
 	}
 }
 
-// applyCliFlags applies CLI flag overrides to the configuration
+// applyCliFlags applies CLI flag overrides to the configuration.
 func applyCliFlags(cmd *cobra.Command, config *entities.Config) {
 	// Apply CLI flag overrides (highest precedence)
 	if cmd.Flags().Changed("port") {
@@ -666,6 +860,8 @@ func applyCliFlags(cmd *cobra.Command, config *entities.Config) {
 	if cmd.Flags().Changed("theme") {
 		config.Theme.Name = themeName
 	}
+	// Note: watch flag is registered but not currently connected to config
+	// The watch feature is handled separately if implemented
 }
 
 // processMarkdownToSlides converts markdown content to HTML slides
@@ -685,7 +881,7 @@ func processMarkdownToSlides(markdown, filePath string, config *entities.Config)
 
 		// Determine slide type based on content
 		slideClass := determineSlideClass(slideContent, i)
-		
+
 		// Wrap in slide div with proper classes
 		slideHTML := fmt.Sprintf(`<div class="slide %s" id="slide-%d">%s</div>`, slideClass, i+1, htmlContent)
 
@@ -699,12 +895,13 @@ func processMarkdownToSlides(markdown, filePath string, config *entities.Config)
 // basicMarkdownToHTML provides complete markdown to HTML conversion using Goldmark
 func basicMarkdownToHTML(markdown string) string {
 	// Configure Goldmark with extensions for full markdown support
+	// SECURITY: Do not use html.WithUnsafe() - it allows XSS attacks
 	md := goldmark.New(
 		goldmark.WithExtensions(
-			extension.GFM,        // GitHub Flavored Markdown (tables, strikethrough, etc.)
-			extension.Table,      // Tables support
+			extension.GFM,           // GitHub Flavored Markdown (tables, strikethrough, etc.)
+			extension.Table,         // Tables support
 			extension.Strikethrough, // ~~strikethrough~~ support
-			extension.TaskList,   // - [ ] task list support
+			extension.TaskList,      // - [ ] task list support
 		),
 		goldmark.WithParserOptions(
 			parser.WithAutoHeadingID(), // Auto-generate heading IDs
@@ -712,7 +909,7 @@ func basicMarkdownToHTML(markdown string) string {
 		goldmark.WithRendererOptions(
 			html.WithHardWraps(), // Convert line breaks to <br>
 			html.WithXHTML(),     // XHTML compliant output
-			html.WithUnsafe(),    // Allow raw HTML (needed for Mermaid)
+			// SECURITY: Removed html.WithUnsafe() to prevent XSS
 		),
 	)
 
@@ -724,10 +921,13 @@ func basicMarkdownToHTML(markdown string) string {
 	}
 
 	// Post-process for Mermaid diagrams
-	html := buf.String()
-	html = postProcessMermaidDiagrams(html)
-	
-	return html
+	htmlOutput := buf.String()
+	htmlOutput = postProcessMermaidDiagrams(htmlOutput)
+
+	// SECURITY: Sanitize HTML output to prevent XSS
+	htmlOutput = sanitizer.SanitizeHTML(htmlOutput)
+
+	return htmlOutput
 }
 
 // determineSlideClass determines the appropriate CSS class for a slide based on its content
@@ -736,14 +936,14 @@ func determineSlideClass(slideContent string, slideIndex int) string {
 	if len(lines) == 0 {
 		return "dev-content"
 	}
-	
+
 	firstLine := strings.TrimSpace(lines[0])
-	
+
 	// First slide is typically a title slide
 	if slideIndex == 0 {
 		return "dev-title"
 	}
-	
+
 	// Check if slide starts with a single H1 and has minimal content (section slide)
 	if strings.HasPrefix(firstLine, "# ") {
 		// Count meaningful content lines (non-empty, non-separator)
@@ -754,21 +954,21 @@ func determineSlideClass(slideContent string, slideIndex int) string {
 				contentLines++
 			}
 		}
-		
+
 		// If H1 with minimal content, it's likely a section header
 		if contentLines <= 2 {
 			return "dev-section"
 		}
 	}
-	
+
 	// Check for specific patterns that indicate section slides
-	if strings.Contains(strings.ToLower(firstLine), "questions") || 
-	   strings.Contains(strings.ToLower(firstLine), "thank you") ||
-	   strings.Contains(strings.ToLower(firstLine), "demo") ||
-	   strings.Contains(strings.ToLower(firstLine), "roadmap") {
+	if strings.Contains(strings.ToLower(firstLine), "questions") ||
+		strings.Contains(strings.ToLower(firstLine), "thank you") ||
+		strings.Contains(strings.ToLower(firstLine), "demo") ||
+		strings.Contains(strings.ToLower(firstLine), "roadmap") {
 		return "dev-section"
 	}
-	
+
 	// Default to content slide
 	return "dev-content"
 }
@@ -777,31 +977,31 @@ func determineSlideClass(slideContent string, slideIndex int) string {
 func postProcessMermaidDiagrams(html string) string {
 	// Pattern to match Goldmark's code blocks with mermaid language (multiline with DOTALL)
 	mermaidPattern := regexp.MustCompile(`(?s)<pre><code class="language-mermaid">(.*?)</code></pre>`)
-	
+
 	return mermaidPattern.ReplaceAllStringFunc(html, func(match string) string {
 		// Extract the Mermaid content from the code block
 		submatch := mermaidPattern.FindStringSubmatch(match)
 		if len(submatch) < 2 {
 			return match
 		}
-		
+
 		mermaidContent := submatch[1]
-		
+
 		// Decode HTML entities that Goldmark encoded
 		mermaidContent = strings.ReplaceAll(mermaidContent, "&lt;", "<")
 		mermaidContent = strings.ReplaceAll(mermaidContent, "&gt;", ">")
 		mermaidContent = strings.ReplaceAll(mermaidContent, "&amp;", "&")
 		mermaidContent = strings.ReplaceAll(mermaidContent, "&#34;", `"`)
 		mermaidContent = strings.ReplaceAll(mermaidContent, "&#39;", `'`)
-		
+
 		// Clean up extra whitespace but preserve structure
 		mermaidContent = strings.TrimSpace(mermaidContent)
-		
+
 		// Escape content for HTML attribute
 		escapedContent := strings.ReplaceAll(mermaidContent, `"`, `&quot;`)
 		escapedContent = strings.ReplaceAll(escapedContent, `'`, `&#39;`)
 		escapedContent = strings.ReplaceAll(escapedContent, "\n", "&#10;")
-		
+
 		// Return Mermaid div with data-original attribute
 		return fmt.Sprintf(`<div class="mermaid" data-original="%s">%s</div>`, escapedContent, mermaidContent)
 	})
@@ -809,11 +1009,11 @@ func postProcessMermaidDiagrams(html string) string {
 
 // markdownProcessor handles the stateful markdown to HTML conversion
 type markdownProcessor struct {
-	html         *strings.Builder
-	inCodeBlock  bool
-	codeLanguage string
-	mermaidContent strings.Builder // Store original Mermaid content
-	inTable      bool
+	html            *strings.Builder
+	inCodeBlock     bool
+	codeLanguage    string
+	mermaidContent  strings.Builder // Store original Mermaid content
+	inTable         bool
 	isFirstTableRow bool
 }
 
@@ -867,22 +1067,22 @@ func (p *markdownProcessor) writeCodeBlockClosing() {
 	if p.codeLanguage == "mermaid" {
 		// Get the collected Mermaid content and update the opening div
 		mermaidContent := strings.TrimSpace(p.mermaidContent.String())
-		
+
 		// Escape quotes for HTML attribute
 		escapedContent := strings.ReplaceAll(mermaidContent, `"`, `&quot;`)
 		escapedContent = strings.ReplaceAll(escapedContent, `'`, `&#39;`)
-		
+
 		// Replace the empty data-original with the actual content
 		currentHTML := p.html.String()
 		updatedHTML := strings.Replace(currentHTML, `data-original=""`, `data-original="`+escapedContent+`"`, 1)
-		
+
 		// Reset and write the updated HTML
 		p.html.Reset()
 		p.html.WriteString(updatedHTML)
-		
+
 		// Reset Mermaid content for next diagram
 		p.mermaidContent.Reset()
-		
+
 		p.html.WriteString("</div>\n")
 	} else {
 		p.html.WriteString("</code></pre>\n")
@@ -945,17 +1145,17 @@ func (p *markdownProcessor) handleTableRow(line string) {
 	if regexp.MustCompile(`^[\|\-\s]*$`).MatchString(line) {
 		return
 	}
-	
+
 	// Start table if not already in one
 	if !p.inTable {
 		p.html.WriteString("<table>\n")
 		p.inTable = true
 		p.isFirstTableRow = true
 	}
-	
+
 	// Split by | and clean up cells
 	cells := strings.Split(line, "|")
-	
+
 	// Remove empty cells at start and end
 	if len(cells) > 0 && strings.TrimSpace(cells[0]) == "" {
 		cells = cells[1:]
@@ -963,25 +1163,25 @@ func (p *markdownProcessor) handleTableRow(line string) {
 	if len(cells) > 0 && strings.TrimSpace(cells[len(cells)-1]) == "" {
 		cells = cells[:len(cells)-1]
 	}
-	
+
 	// Start row
 	p.html.WriteString("<tr>")
-	
+
 	// Process each cell
 	for _, cell := range cells {
 		cell = strings.TrimSpace(cell)
 		content := processInlineMarkdown(cell)
-		
+
 		if p.isFirstTableRow {
 			p.html.WriteString("<th>" + content + "</th>")
 		} else {
 			p.html.WriteString("<td>" + content + "</td>")
 		}
 	}
-	
+
 	// End row
 	p.html.WriteString("</tr>\n")
-	
+
 	// No longer first row
 	p.isFirstTableRow = false
 }
@@ -990,18 +1190,18 @@ func (p *markdownProcessor) handleTableRow(line string) {
 func processInlineMarkdown(text string) string {
 	// Process inline code first to avoid conflicts
 	text = regexp.MustCompile("`([^`]+)`").ReplaceAllString(text, "<code>$1</code>")
-	
+
 	// Process bold text (**text**)
 	text = regexp.MustCompile(`\*\*([^*]+)\*\*`).ReplaceAllString(text, "<strong>$1</strong>")
-	
+
 	// Process italic text (*text*) - but not list markers
 	// Use negative lookbehind/lookahead would be ideal, but Go doesn't support it
 	// So we'll use a more specific pattern
 	text = regexp.MustCompile(`(\s|^)\*([^*\s][^*]*[^*\s])\*(\s|$)`).ReplaceAllString(text, "$1<em>$2</em>$3")
-	
+
 	// Process strikethrough (~~text~~)
 	text = regexp.MustCompile(`~~([^~]+)~~`).ReplaceAllString(text, "<s>$1</s>")
-	
+
 	return text
 }
 
@@ -1017,12 +1217,12 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
 	// to access stored assets and include them in the HTML head section
 	// For now, we include default assets and common plugin dependencies
 
-	pluginAssets := `
+	pluginAssets := fmt.Sprintf(`
     <!-- Common plugin assets -->
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
-    <script src="https://unpkg.com/prismjs@1/components/prism-core.min.js"></script>
-    <script src="https://unpkg.com/prismjs@1/plugins/autoloader/prism-autoloader.min.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/prismjs@1/themes/prism.css">`
+    <script src="%s"></script>
+    <script src="%s"></script>
+    <script src="%s"></script>
+    <link rel="stylesheet" href="%s">`, MermaidCDN, PrismCoreCDN, PrismAutoloaderCDN, PrismThemeCDN)
 
 	themeName := "default"
 	if config != nil && config.Theme.Name != "" {
@@ -1132,7 +1332,7 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
                 mermaid.initialize({
                     startOnLoad: false,  // Don't auto-start
                     theme: 'dark',
-                    securityLevel: 'loose'
+                    securityLevel: 'strict'  // SECURITY: Use strict mode to prevent XSS in diagram labels
                 });
                 
                 // Manually render all visible mermaid diagrams
@@ -1191,10 +1391,10 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
     </script>
 </body>
 </html>`
-	
+
 	// Count total slides
 	slideCount := len(strings.Split(slidesHTML, `<div class="slide"`)) - 1
-	
+
 	// Replace placeholders
 	html := strings.ReplaceAll(htmlTemplate, "{THEME_NAME}", themeName)
 	html = strings.ReplaceAll(html, "{PLUGIN_ASSETS}", pluginAssets)

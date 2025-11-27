@@ -7,9 +7,6 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/renderer/html"
 	"gopkg.in/yaml.v3"
 
 	"github.com/fredcamaral/slicli/internal/domain/ports"
@@ -21,24 +18,16 @@ type GoldmarkParser struct {
 }
 
 // NewGoldmarkParser creates a new Goldmark-based markdown parser
+// using the shared factory for consistent configuration.
+// SECURITY: Uses secure defaults (no raw HTML rendering).
 func NewGoldmarkParser() *GoldmarkParser {
-	md := goldmark.New(
-		goldmark.WithExtensions(
-			extension.GFM,           // GitHub Flavored Markdown
-			extension.Typographer,   // Smart punctuation
-			extension.Table,         // Tables
-			extension.Strikethrough, // ~~strikethrough~~
-			extension.TaskList,      // - [ ] task lists
-		),
-		goldmark.WithParserOptions(
-			parser.WithAutoHeadingID(),
-		),
-		goldmark.WithRendererOptions(
-			html.WithUnsafe(), // Allow raw HTML
-		),
-	)
+	return &GoldmarkParser{md: NewConfiguredGoldmark()}
+}
 
-	return &GoldmarkParser{md: md}
+// NewGoldmarkParserWithConfig creates a new Goldmark-based markdown parser
+// with custom configuration.
+func NewGoldmarkParserWithConfig(cfg GoldmarkConfig) *GoldmarkParser {
+	return &GoldmarkParser{md: NewGoldmarkWithConfig(cfg)}
 }
 
 // Parse parses markdown content into structured presentation data

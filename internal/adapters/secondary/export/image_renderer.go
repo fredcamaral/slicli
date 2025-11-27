@@ -25,11 +25,33 @@ type ImageRenderer struct {
 	browserAutomation *BrowserAutomation
 }
 
-// NewImageRenderer creates a new image renderer
-func NewImageRenderer() *ImageRenderer {
-	// Initialize with default browser config
+// NewImageRenderer creates a new image renderer.
+// Returns an error if browser automation cannot be initialized.
+// Use NewImageRendererWithFallback if you want to allow fallback rendering without browser.
+func NewImageRenderer() (*ImageRenderer, error) {
 	browserConfig := BrowserConfig{}
-	browserAutomation, _ := NewBrowserAutomation(browserConfig)
+	browserAutomation, err := NewBrowserAutomation(browserConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize browser automation: %w", err)
+	}
+
+	return &ImageRenderer{
+		htmlRenderer:      NewHTMLRenderer(),
+		browserAutomation: browserAutomation,
+	}, nil
+}
+
+// NewImageRendererWithFallback creates a new image renderer that falls back to
+// non-browser rendering if browser automation is unavailable.
+// This is useful for environments where Chrome/Chromium may not be installed.
+func NewImageRendererWithFallback() *ImageRenderer {
+	browserConfig := BrowserConfig{}
+	browserAutomation, err := NewBrowserAutomation(browserConfig)
+	if err != nil {
+		// Log warning but continue - fallback rendering will be used
+		// browserAutomation will be nil, triggering fallback in convertHTMLToImage
+		browserAutomation = nil
+	}
 
 	return &ImageRenderer{
 		htmlRenderer:      NewHTMLRenderer(),
@@ -37,7 +59,8 @@ func NewImageRenderer() *ImageRenderer {
 	}
 }
 
-// NewImageRendererWithBrowser creates a new image renderer with custom browser config
+// NewImageRendererWithBrowser creates a new image renderer with custom browser config.
+// Returns an error if browser automation cannot be initialized with the given config.
 func NewImageRendererWithBrowser(browserConfig BrowserConfig) (*ImageRenderer, error) {
 	browserAutomation, err := NewBrowserAutomation(browserConfig)
 	if err != nil {
@@ -52,6 +75,17 @@ func NewImageRendererWithBrowser(browserConfig BrowserConfig) (*ImageRenderer, e
 
 // Render exports the presentation to image files
 func (r *ImageRenderer) Render(ctx context.Context, presentation *entities.Presentation, options *ExportOptions) (*ExportResult, error) {
+	// Validate required fields
+	if r.htmlRenderer == nil {
+		return nil, errors.New("Image renderer not properly initialized: htmlRenderer is nil")
+	}
+	if presentation == nil {
+		return nil, errors.New("presentation cannot be nil")
+	}
+	if options == nil {
+		return nil, errors.New("export options cannot be nil")
+	}
+
 	// Prepare output directory
 	outputDir := options.OutputPath
 	if outputDir != "" && outputDir[len(outputDir)-1] != '/' {

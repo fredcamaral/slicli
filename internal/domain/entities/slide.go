@@ -63,14 +63,16 @@ func (s *Slide) HasNotes() bool {
 	return strings.TrimSpace(s.Notes) != ""
 }
 
-// ContentWithoutNotes returns the slide content without speaker notes
-// (notes are assumed to be lines starting with "Note:")
+// ContentWithoutNotes returns the slide content without speaker notes.
+// Notes are identified by lines starting with "Note:" (case-insensitive).
 func (s *Slide) ContentWithoutNotes() string {
 	lines := strings.Split(s.Content, "\n")
 	var contentLines []string
 
 	for _, line := range lines {
-		if !strings.HasPrefix(strings.TrimSpace(line), "Note:") {
+		trimmed := strings.TrimSpace(line)
+		// Case-insensitive check for note prefix
+		if !strings.HasPrefix(strings.ToLower(trimmed), "note:") {
 			contentLines = append(contentLines, line)
 		}
 	}

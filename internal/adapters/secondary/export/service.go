@@ -124,6 +124,7 @@ type Service struct {
 	tmpDir       string
 	retryConfig  RetryConfig
 	metrics      map[string]*ExportMetrics     // Track metrics per export operation
+	metricsMu    sync.RWMutex                  // Protect concurrent access to metrics
 	browsers     map[string]*BrowserAutomation // Track browser automation instances
 	browserMutex sync.RWMutex                  // Protect concurrent access to browsers
 }
@@ -177,8 +178,9 @@ func NewService(tmpDir string) (*Service, error) {
 
 	// Register default renderers
 	service.RegisterRenderer(FormatHTML, NewHTMLRenderer())
-	service.RegisterRenderer(FormatPDF, NewPDFRenderer())
-	service.RegisterRenderer(FormatImages, NewImageRenderer())
+	// Use fallback renderers that gracefully handle missing browser
+	service.RegisterRenderer(FormatPDF, NewPDFRendererWithFallback())
+	service.RegisterRenderer(FormatImages, NewImageRendererWithFallback())
 	service.RegisterRenderer(FormatMarkdown, NewMarkdownRenderer())
 
 	return service, nil
@@ -187,6 +189,35 @@ func NewService(tmpDir string) (*Service, error) {
 // RegisterRenderer registers a renderer for a specific format
 func (s *Service) RegisterRenderer(format ExportFormat, renderer Renderer) {
 	s.renderers[format] = renderer
+}
+
+// setMetrics stores metrics for an export operation in a thread-safe manner
+func (s *Service) setMetrics(id string, m *ExportMetrics) {
+	s.metricsMu.Lock()
+	defer s.metricsMu.Unlock()
+	s.metrics[id] = m
+}
+
+// getMetrics retrieves metrics for an export operation in a thread-safe manner
+func (s *Service) getMetrics(id string) (*ExportMetrics, bool) {
+	s.metricsMu.RLock()
+	defer s.metricsMu.RUnlock()
+	m, ok := s.metrics[id]
+	return m, ok
+}
+
+// deleteMetrics removes metrics for an export operation in a thread-safe manner
+func (s *Service) deleteMetrics(id string) {
+	s.metricsMu.Lock()
+	defer s.metricsMu.Unlock()
+	delete(s.metrics, id)
+}
+
+// clearMetrics removes all metrics in a thread-safe manner
+func (s *Service) clearMetrics() {
+	s.metricsMu.Lock()
+	defer s.metricsMu.Unlock()
+	s.metrics = make(map[string]*ExportMetrics)
 }
 
 // Export exports a presentation to the specified format with retry logic and comprehensive error handling
@@ -199,7 +230,7 @@ func (s *Service) Export(ctx context.Context, presentation *entities.Presentatio
 		Warnings:         make([]string, 0),
 		FallbacksUsed:    make([]FallbackInfo, 0),
 	}
-	s.metrics[operationID] = metrics
+	s.setMetrics(operationID, metrics)
 
 	// Validate options with detailed error categorization
 	if err := s.validateOptionsDetailed(options); err != nil {
@@ -251,7 +282,7 @@ func (s *Service) Export(ctx context.Context, presentation *entities.Presentatio
 	result.Metadata["export_metrics"] = metrics
 
 	// Cleanup metrics after successful export
-	delete(s.metrics, operationID)
+	s.deleteMetrics(operationID)
 
 	return result, nil
 }
@@ -569,6 +600,9 @@ func (s *Service) GetRetryConfig() RetryConfig {
 
 // GetActiveExports returns information about currently running exports
 func (s *Service) GetActiveExports() map[string]*ExportMetrics {
+	s.metricsMu.RLock()
+	defer s.metricsMu.RUnlock()
+
 	activeExports := make(map[string]*ExportMetrics)
 	for id, metrics := range s.metrics {
 		if metrics.EndTime.IsZero() {
@@ -678,7 +712,7 @@ func (s *Service) Cleanup() error {
 	}
 
 	// Clear active export metrics (they should be completed by now)
-	s.metrics = make(map[string]*ExportMetrics)
+	s.clearMetrics()
 
 	if len(errs) > 0 {
 		return fmt.Errorf("cleanup errors: %v", errs)

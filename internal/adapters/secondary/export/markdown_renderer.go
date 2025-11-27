@@ -3,6 +3,7 @@ package export
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -91,8 +92,13 @@ func (r *MarkdownRenderer) Render(ctx context.Context, presentation *entities.Pr
 		return nil, fmt.Errorf("writing markdown file: %w", err)
 	}
 
-	// Get file size
-	fileSize, _ := GetFileSize(options.OutputPath)
+	// Get file size - log warning if it fails but continue with 0 as fallback
+	// File size is informational and not critical to the export result
+	fileSize, err := GetFileSize(options.OutputPath)
+	if err != nil {
+		log.Printf("WARNING: failed to get file size for %s: %v", options.OutputPath, err)
+		fileSize = 0
+	}
 
 	return &ExportResult{
 		Success:    true,

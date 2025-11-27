@@ -8,6 +8,127 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test ValidateBrowserURL security function
+func TestValidateBrowserURL(t *testing.T) {
+	t.Run("valid HTTP URL passes", func(t *testing.T) {
+		err := ValidateBrowserURL("http://localhost:8080")
+		assert.NoError(t, err)
+	})
+
+	t.Run("valid HTTPS URL passes", func(t *testing.T) {
+		err := ValidateBrowserURL("https://example.com")
+		assert.NoError(t, err)
+	})
+
+	t.Run("URL with path passes", func(t *testing.T) {
+		err := ValidateBrowserURL("http://localhost:8080/slides")
+		assert.NoError(t, err)
+	})
+
+	t.Run("file scheme rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("file:///etc/passwd")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+		assert.Contains(t, err.Error(), "only http and https schemes")
+	})
+
+	t.Run("javascript scheme rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("javascript:alert(1)")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("data scheme rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("data:text/html,<script>alert(1)</script>")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("empty hostname rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http:///path")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+		assert.Contains(t, err.Error(), "empty hostname")
+	})
+
+	t.Run("shell metacharacter ampersand rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http://example.com&whoami")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+		assert.Contains(t, err.Error(), "forbidden character")
+	})
+
+	t.Run("shell metacharacter pipe rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http://example.com|whoami")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("shell metacharacter semicolon rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http://example.com;whoami")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("shell metacharacter dollar rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http://example.com$USER")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("shell metacharacter backtick rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http://example.com`whoami`")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("shell metacharacter exclamation rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http://example.com!cmd")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("shell metacharacter redirect rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http://example.com>file")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("shell metacharacter caret rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http://example.com^cmd")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("shell metacharacter parenthesis rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("http://example.com()")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+
+	t.Run("malformed URL rejected", func(t *testing.T) {
+		err := ValidateBrowserURL("://invalid")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrInvalidBrowserURL)
+	})
+}
+
+func TestLaunchWithURLValidation(t *testing.T) {
+	t.Run("malicious URL blocked before browser launch", func(t *testing.T) {
+		launcher := NewLauncher()
+		err := launcher.Launch("http://example.com&whoami", false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "URL validation failed")
+	})
+
+	t.Run("javascript URL blocked", func(t *testing.T) {
+		launcher := NewLauncher()
+		err := launcher.Launch("javascript:alert(document.cookie)", false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "URL validation failed")
+	})
+}
+
 func TestNewLauncher(t *testing.T) {
 	launcher := NewLauncher()
 	assert.NotNil(t, launcher)
@@ -44,7 +165,7 @@ func TestLauncherDetect(t *testing.T) {
 		launcher := &Launcher{browsers: []Browser{}}
 		_, err := launcher.Detect()
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no browsers detected")
+		assert.Contains(t, err.Error(), "no browsers available")
 	})
 }
 

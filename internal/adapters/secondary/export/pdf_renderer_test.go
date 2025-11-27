@@ -33,7 +33,8 @@ func TestPDFRenderer_FallbackGeneration(t *testing.T) {
 		outputPath := filepath.Join(tmpDir, "test-presentation.pdf")
 
 		// Create renderer
-		renderer := NewPDFRenderer()
+		renderer, err := NewPDFRenderer()
+		require.NoError(t, err)
 
 		// Set up export options
 		options := &ExportOptions{
@@ -71,27 +72,30 @@ func TestPDFRenderer_FallbackGeneration(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputPath := filepath.Join(tmpDir, "empty-presentation.pdf")
 
-		renderer := NewPDFRenderer()
+		renderer, err := NewPDFRenderer()
+		require.NoError(t, err)
+
 		options := &ExportOptions{
 			Format:     FormatPDF,
 			OutputPath: outputPath,
 		}
 
-		result, err := renderer.Render(context.Background(), presentation, options)
+		result, renderErr := renderer.Render(context.Background(), presentation, options)
 
-		require.NoError(t, err)
+		require.NoError(t, renderErr)
 		assert.NotNil(t, result)
 		assert.True(t, result.Success)
 
 		// Should still create a PDF file
-		_, err = os.Stat(outputPath)
-		assert.NoError(t, err)
+		_, statErr := os.Stat(outputPath)
+		assert.NoError(t, statErr)
 	})
 }
 
 func TestPDFRenderer_HTMLParsing(t *testing.T) {
 	t.Run("parses HTML slides correctly", func(t *testing.T) {
-		renderer := NewPDFRenderer()
+		renderer, err := NewPDFRenderer()
+		require.NoError(t, err)
 
 		htmlContent := `
 		<html>
@@ -130,7 +134,8 @@ func TestPDFRenderer_HTMLParsing(t *testing.T) {
 	})
 
 	t.Run("handles malformed HTML gracefully", func(t *testing.T) {
-		renderer := NewPDFRenderer()
+		renderer, err := NewPDFRenderer()
+		require.NoError(t, err)
 
 		htmlContent := `<div><h1>Incomplete HTML`
 
@@ -144,7 +149,8 @@ func TestPDFRenderer_HTMLParsing(t *testing.T) {
 
 func TestPDFRenderer_TextCleaning(t *testing.T) {
 	t.Run("cleans HTML entities", func(t *testing.T) {
-		renderer := NewPDFRenderer()
+		renderer, err := NewPDFRenderer()
+		require.NoError(t, err)
 
 		input := "Hello&nbsp;world &amp; &lt;test&gt; &quot;quoted&quot;"
 		expected := "Hello world & <test> \"quoted\""
@@ -154,7 +160,8 @@ func TestPDFRenderer_TextCleaning(t *testing.T) {
 	})
 
 	t.Run("normalizes whitespace", func(t *testing.T) {
-		renderer := NewPDFRenderer()
+		renderer, err := NewPDFRenderer()
+		require.NoError(t, err)
 
 		input := "Hello    world\n\nwith   multiple   spaces"
 		result := renderer.cleanTextForPDF(input)
@@ -167,7 +174,8 @@ func TestPDFRenderer_TextCleaning(t *testing.T) {
 
 func TestPDFRenderer_LineSplitting(t *testing.T) {
 	t.Run("splits long lines correctly", func(t *testing.T) {
-		renderer := NewPDFRenderer()
+		renderer, err := NewPDFRenderer()
+		require.NoError(t, err)
 
 		input := "This is a very long line that should be split into multiple lines for better PDF formatting"
 		lines := renderer.splitLongLines(input, 30)
@@ -179,7 +187,8 @@ func TestPDFRenderer_LineSplitting(t *testing.T) {
 	})
 
 	t.Run("preserves short lines", func(t *testing.T) {
-		renderer := NewPDFRenderer()
+		renderer, err := NewPDFRenderer()
+		require.NoError(t, err)
 
 		input := "Short line"
 		lines := renderer.splitLongLines(input, 50)

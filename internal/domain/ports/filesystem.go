@@ -50,7 +50,10 @@ type File interface {
 	Chmod(mode os.FileMode) error
 }
 
-// RealFileSystem implements FileSystem using actual OS operations
+// RealFileSystem implements FileSystem using actual OS operations.
+// TODO: Consider moving this implementation to internal/adapters/secondary/filesystem
+// to better align with hexagonal architecture principles. The ports package should
+// ideally contain only interfaces, while implementations belong in adapters.
 type RealFileSystem struct{}
 
 // NewRealFileSystem creates a new real file system implementation
@@ -125,9 +128,9 @@ func (fs *RealFileSystem) CreateTemp(dir, pattern string) (File, error) {
 	return os.CreateTemp(dir, pattern)
 }
 
-// Abs returns the absolute path
+// Abs returns the absolute path for the given path.
 func (fs *RealFileSystem) Abs(path string) (string, error) {
-	return os.Getwd() // Simplified implementation
+	return filepath.Abs(path)
 }
 
 // Walk walks the file tree

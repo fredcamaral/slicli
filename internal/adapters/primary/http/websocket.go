@@ -15,24 +15,45 @@ import (
 )
 
 const (
-	// Time allowed to write a message to the peer
+	// writeWait is the time allowed to write a message to the peer.
+	// This timeout prevents slow or unresponsive clients from blocking
+	// the server's write operations indefinitely.
 	writeWait = 10 * time.Second
 
-	// Time allowed to read the next pong message from the peer
+	// pongWait is the time allowed to read the next pong message from the peer.
+	// If no pong is received within this duration, the connection is considered dead.
+	// The 60-second value aligns with common WebSocket keepalive intervals.
 	pongWait = 60 * time.Second
 
-	// Send pings to peer with this period. Must be less than pongWait
+	// pingPeriod is the interval for sending ping messages to peers.
+	// Must be less than pongWait to ensure pongs are received before timeout.
+	// Calculated as 90% of pongWait (54 seconds) to provide adequate margin.
 	pingPeriod = (pongWait * 9) / 10
 
-	// Maximum message size allowed from peer
-	maxMessageSize = 512
+	// maxMessageSize is the maximum message size allowed from peer in bytes.
+	// Set to 8KB to accommodate presenter commands with metadata, slide navigation
+	// events, and other control messages. This is sufficient for JSON payloads
+	// while providing protection against oversized messages.
+	maxMessageSize = 8 * 1024
+
+	// wsReadBufferSize is the buffer size for WebSocket read operations in bytes.
+	// 1KB is sufficient for control messages and typical client requests.
+	wsReadBufferSize = 1024
+
+	// wsWriteBufferSize is the buffer size for WebSocket write operations in bytes.
+	// 1KB is sufficient for update events and server responses.
+	wsWriteBufferSize = 1024
+
+	// wsSendChannelBuffer is the buffer size for the client's send channel.
+	// 256 events allows for burst handling without blocking the broadcaster.
+	wsSendChannelBuffer = 256
 )
 
 // createUpgrader creates a WebSocket upgrader with proper origin validation
 func (s *Server) createUpgrader() websocket.Upgrader {
 	return websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
+		ReadBufferSize:  wsReadBufferSize,
+		WriteBufferSize: wsWriteBufferSize,
 		CheckOrigin: func(r *http.Request) bool {
 			return s.isValidOrigin(r)
 		},
@@ -81,7 +102,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	client := &WebSocketClient{
 		id:      uuid.New().String(),
 		conn:    conn,
-		send:    make(chan ports.UpdateEvent, 256),
+		send:    make(chan ports.UpdateEvent, wsSendChannelBuffer),
 		manager: s.connMgr,
 		mode:    mode,
 		logger:  s.logger,

@@ -156,6 +156,13 @@ func (m *ConfigMerger) mergeInto(target, source *entities.Config) {
 	if source.Server.ShutdownTimeout != 0 {
 		target.Server.ShutdownTimeout = source.Server.ShutdownTimeout
 	}
+	if source.Server.Environment != "" {
+		target.Server.Environment = source.Server.Environment
+	}
+	if len(source.Server.CORSOrigins) > 0 {
+		target.Server.CORSOrigins = make([]string, len(source.Server.CORSOrigins))
+		copy(target.Server.CORSOrigins, source.Server.CORSOrigins)
+	}
 
 	// Theme config
 	if source.Theme.Name != "" {
@@ -169,9 +176,21 @@ func (m *ConfigMerger) mergeInto(target, source *entities.Config) {
 	if source.Browser.Browser != "" {
 		target.Browser.Browser = source.Browser.Browser
 	}
-	// For boolean fields, we need to check if they were explicitly set
-	// This is a limitation of TOML - we can't distinguish between false and unset
-	// We'll always merge boolean fields for now (this is a known TOML limitation)
+	// KNOWN LIMITATION: Boolean Merge Issue
+	//
+	// In Go, we cannot distinguish between a boolean that was explicitly set to false
+	// versus one that was not set at all (both have zero value = false).
+	//
+	// Current behavior: source.AutoOpen always overwrites target.AutoOpen.
+	// This means if source config doesn't specify AutoOpen, it will set target to false.
+	//
+	// Workarounds for users:
+	// 1. Always explicitly set AutoOpen in config files when using multiple configs
+	// 2. Use environment variable SLICLI_NO_BROWSER=true/false which takes precedence
+	// 3. Use CLI flag --no-browser which has highest precedence
+	//
+	// Future improvement: Consider using *bool (pointer) for optional boolean fields
+	// in the config struct to properly distinguish unset from explicitly false.
 	target.Browser.AutoOpen = source.Browser.AutoOpen
 
 	// Watcher config
@@ -189,9 +208,14 @@ func (m *ConfigMerger) mergeInto(target, source *entities.Config) {
 	}
 
 	// Plugins config
+	// KNOWN LIMITATION: Same boolean merge issue as Browser.AutoOpen above.
+	// See comments there for workarounds and future improvements.
 	target.Plugins.Enabled = source.Plugins.Enabled
 	if source.Plugins.Directory != "" {
 		target.Plugins.Directory = source.Plugins.Directory
+	}
+	if source.Plugins.MarketplaceURL != "" {
+		target.Plugins.MarketplaceURL = source.Plugins.MarketplaceURL
 	}
 	if len(source.Plugins.Whitelist) > 0 {
 		target.Plugins.Whitelist = make([]string, len(source.Plugins.Whitelist))
@@ -240,6 +264,7 @@ func deepCopy(src *entities.Config) *entities.Config {
 			ReadTimeout:     src.Server.ReadTimeout,
 			WriteTimeout:    src.Server.WriteTimeout,
 			ShutdownTimeout: src.Server.ShutdownTimeout,
+			Environment:     src.Server.Environment,
 		},
 		Theme: entities.ThemeConfig{
 			Name:       src.Theme.Name,
@@ -256,17 +281,33 @@ func deepCopy(src *entities.Config) *entities.Config {
 			RetryDelayMs: src.Watcher.RetryDelayMs,
 		},
 		Plugins: entities.PluginsConfig{
-			Enabled:   src.Plugins.Enabled,
-			Directory: src.Plugins.Directory,
+			Enabled:        src.Plugins.Enabled,
+			Directory:      src.Plugins.Directory,
+			MarketplaceURL: src.Plugins.MarketplaceURL,
 		},
 		Metadata: entities.Metadata{
 			Author:  src.Metadata.Author,
 			Email:   src.Metadata.Email,
 			Company: src.Metadata.Company,
 		},
+		Logging: entities.LoggingConfig{
+			Level:      src.Logging.Level,
+			Verbose:    src.Logging.Verbose,
+			JSONFormat: src.Logging.JSONFormat,
+			File:       src.Logging.File,
+			MaxSize:    src.Logging.MaxSize,
+			MaxAge:     src.Logging.MaxAge,
+			MaxBackups: src.Logging.MaxBackups,
+		},
 	}
 
-	// Copy slices
+	// Copy CORSOrigins slice
+	if src.Server.CORSOrigins != nil {
+		dst.Server.CORSOrigins = make([]string, len(src.Server.CORSOrigins))
+		copy(dst.Server.CORSOrigins, src.Server.CORSOrigins)
+	}
+
+	// Copy Plugins slices
 	if src.Plugins.Whitelist != nil {
 		dst.Plugins.Whitelist = make([]string, len(src.Plugins.Whitelist))
 		copy(dst.Plugins.Whitelist, src.Plugins.Whitelist)
@@ -277,12 +318,12 @@ func deepCopy(src *entities.Config) *entities.Config {
 		copy(dst.Plugins.Blacklist, src.Plugins.Blacklist)
 	}
 
+	// Copy Metadata slices and maps
 	if src.Metadata.DefaultTags != nil {
 		dst.Metadata.DefaultTags = make([]string, len(src.Metadata.DefaultTags))
 		copy(dst.Metadata.DefaultTags, src.Metadata.DefaultTags)
 	}
 
-	// Copy map
 	if src.Metadata.Custom != nil {
 		dst.Metadata.Custom = make(map[string]string)
 		for k, v := range src.Metadata.Custom {

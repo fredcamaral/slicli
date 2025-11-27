@@ -119,6 +119,8 @@ func TestPluginService_MemoryMonitoring(t *testing.T) {
 	config := PluginServiceConfig{
 		DefaultTimeout:    5 * time.Second,
 		MaxConcurrent:     5,
+		CacheEnabled:      true,
+		CacheTTL:          5 * time.Minute,
 		EnableMemoryLimit: true,
 		MemoryLimit:       100 * 1024 * 1024, // 100MB
 	}

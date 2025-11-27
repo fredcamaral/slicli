@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/fredcamaral/slicli/internal/adapters/secondary/sanitizer"
 	"github.com/fredcamaral/slicli/internal/domain/ports"
 	pluginapi "github.com/fredcamaral/slicli/pkg/plugin"
 	"github.com/yuin/goldmark"
@@ -82,8 +83,11 @@ func (r *PluginRenderer) renderFencedCodeBlock(w util.BufWriter, source []byte, 
 		return r.renderDefaultCodeBlock(w, source, n, language)
 	}
 
-	// Write plugin output
-	if _, err := w.WriteString(output.HTML); err != nil {
+	// SECURITY: Sanitize plugin output to prevent XSS
+	sanitizedHTML := sanitizer.SanitizePluginOutput(output.HTML)
+
+	// Write sanitized plugin output
+	if _, err := w.WriteString(sanitizedHTML); err != nil {
 		return ast.WalkStop, err
 	}
 
@@ -257,84 +261,6 @@ func (r *PluginRenderer) GenerateAssetHTML() string {
 
 	return html.String()
 }
-
-// parseInt parses a string as an integer (kept for potential future use)
-// func parseInt(s string) (int, error) {
-//	// Simple integer parsing without importing strconv to keep dependencies minimal
-//	if s == "" {
-//		return 0, errors.New("empty string")
-//	}
-//
-//	result := 0
-//	negative := false
-//	start := 0
-//
-//	if s[0] == '-' {
-//		negative = true
-//		start = 1
-//	} else if s[0] == '+' {
-//		start = 1
-//	}
-//
-//	for i := start; i < len(s); i++ {
-//		c := s[i]
-//		if c < '0' || c > '9' {
-//			return 0, errors.New("invalid character")
-//		}
-//		result = result*10 + int(c-'0')
-//	}
-//
-//	if negative {
-//		result = -result
-//	}
-//
-//	return result, nil
-// }
-
-// parseFloat parses a string as a float64 (kept for potential future use)
-// func parseFloat(s string) (float64, error) {
-//	// Simple float parsing for basic cases
-//	if s == "" {
-//		return 0, errors.New("empty string")
-//	}
-//
-//	parts := strings.Split(s, ".")
-//	if len(parts) != 2 {
-//		return 0, errors.New("invalid float format")
-//	}
-//
-//	// Parse integer part
-//	intPart, err := parseInt(parts[0])
-//	if err != nil {
-//		return 0, err
-//	}
-//
-//	// Parse decimal part
-//	decStr := parts[1]
-//	decPart := 0
-//	for _, c := range decStr {
-//		if c < '0' || c > '9' {
-//			return 0, errors.New("invalid decimal")
-//		}
-//		decPart = decPart*10 + int(c-'0')
-//	}
-//
-//	// Convert to float
-//	result := float64(intPart)
-//	if len(decStr) > 0 {
-//		divisor := 1.0
-//		for i := 0; i < len(decStr); i++ {
-//			divisor *= 10
-//		}
-//		if intPart >= 0 {
-//			result += float64(decPart) / divisor
-//		} else {
-//			result -= float64(decPart) / divisor
-//		}
-//	}
-//
-//	return result, nil
-// }
 
 // PluginExtension is a Goldmark extension for plugin support
 type PluginExtension struct {

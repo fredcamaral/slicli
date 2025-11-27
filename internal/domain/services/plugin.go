@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,24 +13,44 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fredcamaral/slicli/internal/adapters/secondary/optimization"
-	concurrentplugin "github.com/fredcamaral/slicli/internal/adapters/secondary/plugin"
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/fredcamaral/slicli/internal/domain/ports"
 	pluginapi "github.com/fredcamaral/slicli/pkg/plugin"
+)
+
+const (
+	// DefaultPluginTimeout is the default maximum execution time for a plugin.
+	// 5 seconds is sufficient for most rendering operations while preventing
+	// runaway plugins from blocking the system.
+	DefaultPluginTimeout = 5 * time.Second
+
+	// DefaultMaxConcurrentPlugins is the default number of plugins that can
+	// execute concurrently. 10 allows parallel execution without overwhelming
+	// system resources on typical development machines.
+	DefaultMaxConcurrentPlugins = 10
+
+	// DefaultPluginCacheTTL is the default time-to-live for cached plugin results.
+	// 5 minutes balances performance gains from caching with freshness for
+	// frequently edited presentations.
+	DefaultPluginCacheTTL = 5 * time.Minute
+
+	// DefaultPluginMemoryLimit is the default memory limit per plugin execution in bytes.
+	// 100MB (104,857,600 bytes) provides sufficient headroom for complex rendering
+	// operations while protecting against memory exhaustion from malicious or buggy plugins.
+	DefaultPluginMemoryLimit = 100 * 1024 * 1024
 )
 
 // PluginService manages plugin operations.
 type PluginService struct {
 	loader             ports.PluginLoader
 	executor           ports.PluginExecutor
-	memoryExecutor     *concurrentplugin.MemoryLimitedExecutor
+	memoryExecutor     ports.MemoryLimitedPluginExecutor
 	registry           ports.PluginRegistry
 	cache              ports.PluginCache
 	matcher            ports.PluginMatcher
 	config             PluginServiceConfig
-	concurrentExec     *concurrentplugin.ConcurrentExecutor
-	optimizationSvc    *optimization.OptimizationService
+	concurrentExec     ports.ConcurrentPluginExecutor
+	optimizationSvc    ports.OptimizationService
 	logger             *slog.Logger
 	shutdownMu         sync.Mutex
 	shutdown           bool
@@ -50,6 +71,13 @@ type PluginServiceConfig struct {
 	EnableMemoryLimit bool  // Enable memory limiting if supported by platform
 }
 
+// PluginServiceOptions contains optional dependencies for PluginService.
+type PluginServiceOptions struct {
+	MemoryExecutor  ports.MemoryLimitedPluginExecutor
+	ConcurrentExec  ports.ConcurrentPluginExecutor
+	OptimizationSvc ports.OptimizationService
+}
+
 // NewPluginService creates a new plugin service.
 func NewPluginService(
 	loader ports.PluginLoader,
@@ -60,21 +88,35 @@ func NewPluginService(
 	config PluginServiceConfig,
 	logger *slog.Logger,
 ) *PluginService {
+	return NewPluginServiceWithOptions(loader, executor, registry, cache, matcher, config, logger, PluginServiceOptions{})
+}
+
+// NewPluginServiceWithOptions creates a new plugin service with optional dependencies.
+func NewPluginServiceWithOptions(
+	loader ports.PluginLoader,
+	executor ports.PluginExecutor,
+	registry ports.PluginRegistry,
+	cache ports.PluginCache,
+	matcher ports.PluginMatcher,
+	config PluginServiceConfig,
+	logger *slog.Logger,
+	opts PluginServiceOptions,
+) *PluginService {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	// Set defaults
+	// Set defaults using named constants
 	if config.DefaultTimeout <= 0 {
-		config.DefaultTimeout = 5 * time.Second
+		config.DefaultTimeout = DefaultPluginTimeout
 	}
 	if config.MaxConcurrent <= 0 {
-		config.MaxConcurrent = 10
+		config.MaxConcurrent = DefaultMaxConcurrentPlugins
 	}
 	if config.CacheTTL <= 0 {
-		config.CacheTTL = 5 * time.Minute
+		config.CacheTTL = DefaultPluginCacheTTL
 	}
 	if config.MemoryLimit <= 0 {
-		config.MemoryLimit = 100 * 1024 * 1024 // Default 100MB per plugin
+		config.MemoryLimit = DefaultPluginMemoryLimit
 	}
 
 	service := &PluginService{
@@ -86,37 +128,41 @@ func NewPluginService(
 		config:           config,
 		logger:           logger.With("service", "plugin"),
 		memoryMonitoring: make(map[string]int64),
+		memoryExecutor:   opts.MemoryExecutor,
+		concurrentExec:   opts.ConcurrentExec,
+		optimizationSvc:  opts.OptimizationSvc,
 	}
 
-	// Initialize memory-limited executor if enabled and supported
-	if config.EnableMemoryLimit && concurrentplugin.IsMemoryLimitingAvailable() {
-		if memExec, err := concurrentplugin.NewMemoryLimitedExecutor(
-			config.DefaultTimeout,
-			config.MaxConcurrent,
-			config.MemoryLimit,
-		); err == nil {
-			service.memoryExecutor = memExec
-			service.logger.Info("Memory limiting enabled", slog.Int64("limit_mb", config.MemoryLimit/(1024*1024)))
-		} else {
-			service.logger.Error("Failed to initialize memory-limited executor", slog.String("error", err.Error()))
-		}
+	// Log memory limiting status
+	if service.memoryExecutor != nil && service.memoryExecutor.IsMemoryLimitingSupported() {
+		service.logger.Info("Memory limiting enabled", slog.Int64("limit_mb", config.MemoryLimit/(1024*1024)))
 	} else if config.EnableMemoryLimit {
-		service.logger.Warn("Memory limiting requested but not available on this platform")
+		service.logger.Warn("Memory limiting requested but not available")
 	}
-
-	// Initialize concurrent executor if not provided by optimization service
-	service.concurrentExec = concurrentplugin.NewConcurrentExecutor(config.MaxConcurrent)
 
 	return service
 }
 
-// SetOptimizationService sets the optimization service and uses its concurrent executor
-func (s *PluginService) SetOptimizationService(optimizationSvc *optimization.OptimizationService) {
+// SetOptimizationService sets the optimization service and uses its concurrent executor.
+func (s *PluginService) SetOptimizationService(optimizationSvc ports.OptimizationService) {
 	s.optimizationSvc = optimizationSvc
 	if optimizationSvc != nil {
 		// Use the optimization service's concurrent executor for better performance
 		s.concurrentExec = optimizationSvc.GetConcurrentExecutor()
 	}
+}
+
+// SetMemoryExecutor sets the memory-limited plugin executor.
+func (s *PluginService) SetMemoryExecutor(memExec ports.MemoryLimitedPluginExecutor) {
+	s.memoryExecutor = memExec
+	if memExec != nil && memExec.IsMemoryLimitingSupported() {
+		s.logger.Info("Memory limiting enabled", slog.Int64("limit_mb", s.config.MemoryLimit/(1024*1024)))
+	}
+}
+
+// SetConcurrentExecutor sets the concurrent plugin executor.
+func (s *PluginService) SetConcurrentExecutor(concExec ports.ConcurrentPluginExecutor) {
+	s.concurrentExec = concExec
 }
 
 // Initialize initializes the plugin service.
@@ -398,7 +444,7 @@ func (s *PluginService) ProcessContent(ctx context.Context, content string, lang
 	return s.processContentSequentially(ctx, content, language, pluginNames)
 }
 
-// processContentConcurrently executes plugins concurrently with optimization
+// processContentConcurrently executes plugins concurrently with optimization.
 func (s *PluginService) processContentConcurrently(ctx context.Context, content string, language string, pluginNames []string) ([]pluginapi.PluginOutput, error) {
 	// Get plugin instances for concurrent execution
 	var pluginInstances []entities.PluginInstance
@@ -429,11 +475,11 @@ func (s *PluginService) processContentConcurrently(ctx context.Context, content 
 
 	// Convert results to expected format
 	var outputs []pluginapi.PluginOutput
-	var errors []error
+	var errs []error
 
 	for pluginName, result := range batchResult.Results {
 		if result.Error != nil {
-			errors = append(errors, fmt.Errorf("plugin %s: %w", pluginName, result.Error))
+			errs = append(errs, fmt.Errorf("plugin %s: %w", pluginName, result.Error))
 			continue
 		}
 		outputs = append(outputs, result.Output)
@@ -445,19 +491,29 @@ func (s *PluginService) processContentConcurrently(ctx context.Context, content 
 		}
 	}
 
-	// Return any errors
-	if len(errors) > 0 {
-		// Return outputs we got and the first error
-		return outputs, errors[0]
+	// Return any errors - join all errors to provide complete feedback
+	if len(errs) > 0 {
+		return outputs, errors.Join(errs...)
 	}
 
 	return outputs, nil
 }
 
-// processContentSequentially executes plugins one by one (fallback)
+// processContentSequentially executes plugins one by one (fallback).
+//
+// PERFORMANCE NOTE: This sequential execution path is a known performance bottleneck.
+// When multiple plugins need to process the same content, executing them sequentially
+// can take 650ms+ compared to ~300ms with concurrent execution.
+//
+// TODO(performance): This function should only be used as a fallback when concurrent
+// execution is not available (concurrentExec == nil). The preferred execution path
+// is processContentConcurrently() which provides 50-70% performance improvement.
+//
+// See: CLAUDE.md "Performance Optimization Priorities" section for details.
+// See: processContentConcurrently() for the optimized concurrent implementation.
 func (s *PluginService) processContentSequentially(ctx context.Context, content string, language string, pluginNames []string) ([]pluginapi.PluginOutput, error) {
 	var outputs []pluginapi.PluginOutput
-	var errors []error
+	var errs []error
 
 	for _, name := range pluginNames {
 		input := pluginapi.PluginInput{
@@ -469,17 +525,16 @@ func (s *PluginService) processContentSequentially(ctx context.Context, content 
 
 		output, err := s.ExecutePlugin(ctx, name, input)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("plugin %s: %w", name, err))
+			errs = append(errs, fmt.Errorf("plugin %s: %w", name, err))
 			continue
 		}
 
 		outputs = append(outputs, output)
 	}
 
-	// Return any errors
-	if len(errors) > 0 {
-		// Return outputs we got and the first error
-		return outputs, errors[0]
+	// Return any errors - join all errors to provide complete feedback
+	if len(errs) > 0 {
+		return outputs, errors.Join(errs...)
 	}
 
 	return outputs, nil
@@ -492,17 +547,17 @@ func (s *PluginService) Shutdown(ctx context.Context) error {
 	s.shutdownMu.Unlock()
 
 	// Unload all plugins
-	var errors []error
+	var shutdownErrors []error
 	for name := range s.registry.GetAll() {
 		if err := s.UnloadPlugin(ctx, name); err != nil {
-			errors = append(errors, fmt.Errorf("unloading %s: %w", name, err))
+			shutdownErrors = append(shutdownErrors, fmt.Errorf("unloading %s: %w", name, err))
 		}
 	}
 
 	// Cleanup memory-limited executor
 	if s.memoryExecutor != nil {
 		if err := s.memoryExecutor.Cleanup(); err != nil {
-			errors = append(errors, fmt.Errorf("cleaning up memory executor: %w", err))
+			shutdownErrors = append(shutdownErrors, fmt.Errorf("cleaning up memory executor: %w", err))
 		}
 	}
 
@@ -516,14 +571,14 @@ func (s *PluginService) Shutdown(ctx context.Context) error {
 	s.memoryMonitoring = make(map[string]int64)
 	s.memoryMonitoringMu.Unlock()
 
-	if len(errors) > 0 {
-		return fmt.Errorf("shutdown errors: %v", errors)
+	if len(shutdownErrors) > 0 {
+		return fmt.Errorf("shutdown errors: %v", shutdownErrors)
 	}
 
 	return nil
 }
 
-// updateMemoryUsage updates memory monitoring for a plugin
+// updateMemoryUsage updates memory monitoring for a plugin.
 func (s *PluginService) updateMemoryUsage(pluginName string) {
 	if s.memoryExecutor == nil {
 		return
@@ -541,7 +596,7 @@ func (s *PluginService) updateMemoryUsage(pluginName string) {
 	}
 }
 
-// GetMemoryUsage returns current memory usage for all plugins
+// GetMemoryUsage returns current memory usage for all plugins.
 func (s *PluginService) GetMemoryUsage() map[string]int64 {
 	s.memoryMonitoringMu.RLock()
 	defer s.memoryMonitoringMu.RUnlock()
@@ -554,33 +609,27 @@ func (s *PluginService) GetMemoryUsage() map[string]int64 {
 	return usage
 }
 
-// IsMemoryLimitingEnabled returns whether memory limiting is enabled and available
+// IsMemoryLimitingEnabled returns whether memory limiting is enabled and available.
 func (s *PluginService) IsMemoryLimitingEnabled() bool {
 	return s.memoryExecutor != nil && s.memoryExecutor.IsMemoryLimitingSupported()
 }
 
-// GetMemoryLimitConfig returns memory limiting configuration
+// GetMemoryLimitConfig returns memory limiting configuration.
 func (s *PluginService) GetMemoryLimitConfig() (enabled bool, limit int64) {
 	return s.config.EnableMemoryLimit, s.config.MemoryLimit
 }
 
-// GetActiveExecutions returns information about currently running plugin executions
+// GetActiveExecutions returns information about currently running plugin executions.
 func (s *PluginService) GetActiveExecutions() map[string]time.Duration {
 	if s.memoryExecutor != nil {
 		return s.memoryExecutor.GetActiveExecutions()
 	}
 
-	// Fallback to sandbox executor
-	if s.executor != nil {
-		if sandboxExec, ok := s.executor.(*concurrentplugin.SandboxExecutor); ok {
-			return sandboxExec.GetExecutingPlugins()
-		}
-	}
-
+	// Return empty map if no executor available
 	return make(map[string]time.Duration)
 }
 
-// SetMemoryEnforcementPolicy configures memory monitoring behavior
+// SetMemoryEnforcementPolicy configures memory monitoring behavior.
 func (s *PluginService) SetMemoryEnforcementPolicy(enableEnforcement, killOnExceed bool, warningThreshold, criticalThreshold float64) error {
 	if s.memoryExecutor == nil {
 		return errors.New("memory limiting not available")
@@ -597,7 +646,7 @@ func (s *PluginService) SetMemoryEnforcementPolicy(enableEnforcement, killOnExce
 	return nil
 }
 
-// GetMemoryEnforcementPolicy returns current memory enforcement settings
+// GetMemoryEnforcementPolicy returns current memory enforcement settings.
 func (s *PluginService) GetMemoryEnforcementPolicy() (enableEnforcement, killOnExceed bool, warningThreshold, criticalThreshold float64, err error) {
 	if s.memoryExecutor == nil {
 		return false, false, 0, 0, errors.New("memory limiting not available")
@@ -607,7 +656,7 @@ func (s *PluginService) GetMemoryEnforcementPolicy() (enableEnforcement, killOnE
 	return enableEnforcement, killOnExceed, warningThreshold, criticalThreshold, nil
 }
 
-// GetMemoryStatistics returns comprehensive memory usage statistics
+// GetMemoryStatistics returns comprehensive memory usage statistics.
 func (s *PluginService) GetMemoryStatistics() map[string]interface{} {
 	stats := make(map[string]interface{})
 
@@ -650,15 +699,14 @@ func (s *PluginService) GetMemoryStatistics() map[string]interface{} {
 	return stats
 }
 
-// generateCacheKey generates a cache key for a plugin execution.
+// generateCacheKey generates a cache key for a plugin execution using SHA256 hashing.
+// This avoids cache key collisions that could occur with simple truncation.
 func (s *PluginService) generateCacheKey(pluginName string, input pluginapi.PluginInput) string {
-	// Simple key generation - could be improved with hashing
-	key := fmt.Sprintf("%s:%s:%s", pluginName, input.Language, input.Content)
-	if len(key) > 100 {
-		// Truncate long keys
-		key = key[:100]
-	}
-	return key
+	h := sha256.New()
+	h.Write([]byte(pluginName))
+	h.Write([]byte(input.Language))
+	h.Write([]byte(input.Content))
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 // parseTimeout parses a timeout string from plugin configuration.
@@ -698,7 +746,7 @@ func parseTimeout(timeoutStr string) (time.Duration, error) {
 	return 0, fmt.Errorf("invalid timeout format: %s", timeoutStr)
 }
 
-// Note: Import the InMemoryRegistry type assertion fix
+// InMemoryRegistry is an interface for registries that extend the base PluginRegistry.
 type InMemoryRegistry interface {
 	ports.PluginRegistry
 	IncrementTimeout(name string)
@@ -706,3 +754,6 @@ type InMemoryRegistry interface {
 	GetLoadedPlugin(name string) (*entities.LoadedPlugin, error)
 	ListLoadedPlugins() []entities.LoadedPlugin
 }
+
+// Ensure PluginService implements ports.PluginService interface.
+var _ ports.PluginService = (*PluginService)(nil)

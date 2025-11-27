@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -19,13 +20,23 @@ type PresentationSyncService struct {
 	ticker       *time.Ticker
 	presentation *entities.Presentation
 	notesService ports.NotesService
+	logger       *slog.Logger
 	ctx          context.Context
 	cancel       context.CancelFunc
 }
 
-// NewPresentationSyncService creates a new presentation sync service
+// NewPresentationSyncService creates a new presentation sync service.
 func NewPresentationSyncService(presentation *entities.Presentation, notesService ports.NotesService) *PresentationSyncService {
+	return NewPresentationSyncServiceWithLogger(presentation, notesService, nil)
+}
+
+// NewPresentationSyncServiceWithLogger creates a new presentation sync service with a custom logger.
+func NewPresentationSyncServiceWithLogger(presentation *entities.Presentation, notesService ports.NotesService, logger *slog.Logger) *PresentationSyncService {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	if logger == nil {
+		logger = slog.Default()
+	}
 
 	s := &PresentationSyncService{
 		state: &entities.PresenterState{
@@ -37,6 +48,7 @@ func NewPresentationSyncService(presentation *entities.Presentation, notesServic
 		clients:      make(map[string]chan entities.SyncEvent),
 		presentation: presentation,
 		notesService: notesService,
+		logger:       logger.With("service", "presentation_sync"),
 		ctx:          ctx,
 		cancel:       cancel,
 	}
@@ -72,10 +84,11 @@ func (s *PresentationSyncService) Unsubscribe(clientID string) {
 	}
 }
 
-// Broadcast sends an event to all connected clients
+// Broadcast sends an event to all connected clients.
+// Uses write lock since updateState modifies internal state.
 func (s *PresentationSyncService) Broadcast(event entities.SyncEvent) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// Update state based on event
 	if err := s.updateState(event); err != nil {
@@ -89,7 +102,7 @@ func (s *PresentationSyncService) Broadcast(event entities.SyncEvent) error {
 			// Event sent successfully
 		default:
 			// Client too slow, log and continue
-			fmt.Printf("Warning: Client %s is slow, skipping event\n", clientID)
+			s.logger.Warn("Client is slow, skipping event", slog.String("clientID", clientID))
 		}
 	}
 

@@ -3,6 +3,8 @@ package entities
 import (
 	"errors"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	pluginapi "github.com/fredcamaral/slicli/pkg/plugin"
@@ -89,6 +91,34 @@ type PluginManifest struct {
 	Requirements  PluginRequirements `toml:"requirements"`
 	Capabilities  PluginCapabilities `toml:"capabilities"`
 	DefaultConfig PluginConfig       `toml:"config"`
+	// Security contains integrity and signature information for the plugin
+	Security PluginSecurity `toml:"security"`
+}
+
+// PluginSecurity contains security-related information for a plugin.
+// This enables integrity verification and optional cryptographic signatures.
+type PluginSecurity struct {
+	// Signature is an optional cryptographic signature for the plugin binary.
+	// Format: base64-encoded signature using the algorithm specified in SignatureType.
+	Signature string `toml:"signature"`
+	// SignatureType specifies the signature algorithm (e.g., "ed25519", "rsa-sha256").
+	// Required if Signature is provided.
+	SignatureType string `toml:"signature_type"`
+	// PublicKeyID identifies the public key used to verify the signature.
+	// This allows key rotation and identification of the signing authority.
+	PublicKeyID string `toml:"public_key_id"`
+	// SHA256 is the hex-encoded SHA256 hash of the plugin binary for integrity verification.
+	SHA256 string `toml:"sha256"`
+}
+
+// HasSignature returns true if the manifest has valid signature fields.
+func (s *PluginSecurity) HasSignature() bool {
+	return s.Signature != "" && s.SignatureType != ""
+}
+
+// HasChecksum returns true if the manifest has checksum information.
+func (s *PluginSecurity) HasChecksum() bool {
+	return s.SHA256 != ""
 }
 
 // PluginRequirements specifies what a plugin needs to run.
@@ -206,17 +236,25 @@ func (p *LoadedPlugin) GetPluginTimeout() time.Duration {
 }
 
 // MatchesContent checks if the plugin should handle the given content.
+// Content patterns are user-supplied regex patterns; invalid patterns are skipped.
 func (c *PluginConfig) MatchesContent(content string, fileExt string) bool {
-	// Check file extension
+	// Check file extension first (fast path)
 	for _, ext := range c.FileExtensions {
 		if ext == fileExt {
 			return true
 		}
 	}
 
-	// Check content patterns
+	// Check content patterns with compiled regex for better performance.
+	// Invalid patterns are logged and skipped to prevent blocking.
 	for _, pattern := range c.ContentPatterns {
-		if matched, err := regexp.MatchString(pattern, content); err == nil && matched {
+		re, err := regexp.Compile(pattern)
+		if err != nil {
+			// Invalid pattern - skip it rather than fail
+			continue
+		}
+		// Use FindStringIndex for early termination on match
+		if re.FindStringIndex(content) != nil {
 			return true
 		}
 	}
@@ -234,12 +272,16 @@ func (c *PluginConfig) GetTimeout() time.Duration {
 
 // IsCompatible checks if the plugin is compatible with the current environment.
 func (r *PluginRequirements) IsCompatible(slicliVersion, os, arch string) bool {
-	// Check version compatibility
-	if r.MinSlicliVersion != "" && slicliVersion < r.MinSlicliVersion {
-		return false
+	// Check version compatibility using proper semantic version comparison
+	if r.MinSlicliVersion != "" {
+		if compareSemanticVersions(slicliVersion, r.MinSlicliVersion) < 0 {
+			return false
+		}
 	}
-	if r.MaxSlicliVersion != "" && slicliVersion > r.MaxSlicliVersion {
-		return false
+	if r.MaxSlicliVersion != "" {
+		if compareSemanticVersions(slicliVersion, r.MaxSlicliVersion) > 0 {
+			return false
+		}
 	}
 
 	// Check OS compatibility
@@ -271,4 +313,60 @@ func (r *PluginRequirements) IsCompatible(slicliVersion, os, arch string) bool {
 	}
 
 	return true
+}
+
+// compareSemanticVersions compares two semantic version strings.
+// Returns -1 if v1 < v2, 0 if v1 == v2, 1 if v1 > v2.
+// Handles versions with or without "v" prefix.
+func compareSemanticVersions(v1, v2 string) int {
+	// Normalize versions by removing "v" prefix if present
+	v1 = strings.TrimPrefix(v1, "v")
+	v2 = strings.TrimPrefix(v2, "v")
+
+	// Split versions into components
+	parts1 := parseVersionParts(v1)
+	parts2 := parseVersionParts(v2)
+
+	// Compare major, minor, patch
+	for i := 0; i < 3; i++ {
+		var p1, p2 int
+		if i < len(parts1) {
+			p1 = parts1[i]
+		}
+		if i < len(parts2) {
+			p2 = parts2[i]
+		}
+
+		if p1 < p2 {
+			return -1
+		}
+		if p1 > p2 {
+			return 1
+		}
+	}
+
+	return 0
+}
+
+// parseVersionParts parses a version string into numeric components.
+// For example, "1.10.2-beta" returns [1, 10, 2].
+func parseVersionParts(version string) []int {
+	// Remove prerelease and build metadata
+	if idx := strings.IndexAny(version, "-+"); idx != -1 {
+		version = version[:idx]
+	}
+
+	parts := strings.Split(version, ".")
+	result := make([]int, 0, len(parts))
+
+	for _, part := range parts {
+		num, err := strconv.Atoi(part)
+		if err != nil {
+			// If parsing fails, treat as 0
+			num = 0
+		}
+		result = append(result, num)
+	}
+
+	return result
 }

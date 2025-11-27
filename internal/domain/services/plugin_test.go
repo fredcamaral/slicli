@@ -423,7 +423,7 @@ func TestPluginService_ProcessContent(t *testing.T) {
 		cache.AssertExpectations(t)
 	})
 
-	t.Run("multiple plugins concurrent execution", func(t *testing.T) {
+	t.Run("multiple plugins sequential execution", func(t *testing.T) {
 		// Reset mocks for second test
 		matcher.ExpectedCalls = nil
 		executor.ExpectedCalls = nil
@@ -432,31 +432,35 @@ func TestPluginService_ProcessContent(t *testing.T) {
 
 		plugin1 := &TestPlugin{name: "plugin1", version: "1.0.0"}
 		plugin2 := &TestPlugin{name: "plugin2", version: "1.0.0"}
+		output1 := pluginapi.PluginOutput{HTML: "<div>output1</div>"}
+		output2 := pluginapi.PluginOutput{HTML: "<div>output2</div>"}
 
 		matcher.On("Match", "test content", "markdown", mock.Anything).Return([]string{"plugin1", "plugin2"})
 
-		// Mock GetLoadedPlugin calls for concurrent execution path
-		registry.On("GetLoadedPlugin", "plugin1").Return(&entities.LoadedPlugin{
-			Metadata: entities.PluginMetadata{Name: "plugin1", Version: "1.0.0"},
-			Status:   entities.PluginStatusLoaded,
-		}, nil)
-		registry.On("GetLoadedPlugin", "plugin2").Return(&entities.LoadedPlugin{
-			Metadata: entities.PluginMetadata{Name: "plugin2", Version: "1.0.0"},
-			Status:   entities.PluginStatusLoaded,
-		}, nil)
-
+		// Sequential execution path (no concurrent executor set)
 		registry.On("Get", "plugin1").Return(plugin1, true)
 		registry.On("Get", "plugin2").Return(plugin2, true)
+		registry.On("GetMetadata", "plugin1").Return((*entities.PluginMetadata)(nil), false)
+		registry.On("GetMetadata", "plugin2").Return((*entities.PluginMetadata)(nil), false)
+
+		// Cache expectations - use mock.AnythingOfType for SHA256 keys
+		cache.On("Get", mock.AnythingOfType("string")).Return(nil, false)
+		executor.On("ExecuteWithTimeout", ctx, plugin1, mock.Anything, 5*time.Second).Return(output1, nil)
+		executor.On("ExecuteWithTimeout", ctx, plugin2, mock.Anything, 5*time.Second).Return(output2, nil)
+		registry.On("UpdateStatistics", "plugin1", mock.Anything, true, mock.Anything, mock.Anything)
+		registry.On("UpdateStatistics", "plugin2", mock.Anything, true, mock.Anything, mock.Anything)
+		cache.On("Set", mock.AnythingOfType("string"), mock.Anything, 5*time.Minute)
 
 		outputs, err := service.ProcessContent(ctx, "test content", "markdown")
 		require.NoError(t, err)
 		assert.Len(t, outputs, 2)
-		// The concurrent execution will use the actual plugin execution, so expect the TestPlugin output
-		assert.Equal(t, "<div>test</div>", outputs[0].HTML)
-		assert.Equal(t, "<div>test</div>", outputs[1].HTML)
+		assert.Equal(t, "<div>output1</div>", outputs[0].HTML)
+		assert.Equal(t, "<div>output2</div>", outputs[1].HTML)
 
 		matcher.AssertExpectations(t)
 		registry.AssertExpectations(t)
+		executor.AssertExpectations(t)
+		cache.AssertExpectations(t)
 	})
 }
 

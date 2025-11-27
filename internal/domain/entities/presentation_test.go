@@ -92,8 +92,9 @@ func TestPresentation_Validate(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				require.NoError(t, err)
-				// Check default theme was applied
+				// Check default theme was applied after calling ApplyDefaults
 				if tt.name == "default theme applied when empty" {
+					p.ApplyDefaults()
 					assert.Equal(t, "default", p.Theme)
 				}
 			}

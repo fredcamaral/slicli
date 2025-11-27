@@ -35,7 +35,8 @@ func TestHandlePresentation(t *testing.T) {
 	t.Run("successful presentation render", func(t *testing.T) {
 		presenter := new(MockPresentationService)
 		renderer := new(MockRenderer)
-		server := NewServer(presenter, renderer, getTestServerConfig())
+		server, err := NewServer(presenter, renderer, getTestServerConfig())
+		require.NoError(t, err)
 
 		presentation := &entities.Presentation{
 			Title:  "Test Presentation",
@@ -72,7 +73,8 @@ func TestHandlePresentation(t *testing.T) {
 	t.Run("presentation not loaded", func(t *testing.T) {
 		presenter := new(MockPresentationService)
 		renderer := new(MockRenderer)
-		server := NewServer(presenter, renderer, getTestServerConfig())
+		server, err := NewServer(presenter, renderer, getTestServerConfig())
+		require.NoError(t, err)
 
 		// Don't set any presentation - it will create a default one
 		defaultPresentation := &entities.Presentation{
@@ -105,7 +107,8 @@ func TestHandlePresentation(t *testing.T) {
 	t.Run("renderer error", func(t *testing.T) {
 		presenter := new(MockPresentationService)
 		renderer := new(MockRenderer)
-		server := NewServer(presenter, renderer, getTestServerConfig())
+		server, err := NewServer(presenter, renderer, getTestServerConfig())
+		require.NoError(t, err)
 
 		presentation := &entities.Presentation{Title: "Test"}
 
@@ -128,7 +131,8 @@ func TestHandlePresentation(t *testing.T) {
 	t.Run("404 for non-root path", func(t *testing.T) {
 		presenter := new(MockPresentationService)
 		renderer := new(MockRenderer)
-		server := NewServer(presenter, renderer, getTestServerConfig())
+		server, err := NewServer(presenter, renderer, getTestServerConfig())
+		require.NoError(t, err)
 
 		req := httptest.NewRequest("GET", "/unknown", nil)
 		w := httptest.NewRecorder()
@@ -144,7 +148,8 @@ func TestHandleSlides(t *testing.T) {
 	t.Run("successful slides response", func(t *testing.T) {
 		presenter := new(MockPresentationService)
 		renderer := new(MockRenderer)
-		server := NewServer(presenter, renderer, getTestServerConfig())
+		server, err := NewServer(presenter, renderer, getTestServerConfig())
+		require.NoError(t, err)
 
 		presentation := &entities.Presentation{
 			Title:  "Test Presentation",
@@ -172,7 +177,7 @@ func TestHandleSlides(t *testing.T) {
 		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 		var slidesResp SlidesResponse
-		err := json.Unmarshal(body, &slidesResp)
+		err = json.Unmarshal(body, &slidesResp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Test Presentation", slidesResp.Title)
@@ -188,7 +193,8 @@ func TestHandleSlides(t *testing.T) {
 	t.Run("method not allowed", func(t *testing.T) {
 		presenter := new(MockPresentationService)
 		renderer := new(MockRenderer)
-		server := NewServer(presenter, renderer, getTestServerConfig())
+		server, err := NewServer(presenter, renderer, getTestServerConfig())
+		require.NoError(t, err)
 
 		req := httptest.NewRequest("POST", "/api/slides", nil)
 		w := httptest.NewRecorder()
@@ -202,7 +208,8 @@ func TestHandleSlides(t *testing.T) {
 	t.Run("no presentation loaded", func(t *testing.T) {
 		presenter := new(MockPresentationService)
 		renderer := new(MockRenderer)
-		server := NewServer(presenter, renderer, getTestServerConfig())
+		server, err := NewServer(presenter, renderer, getTestServerConfig())
+		require.NoError(t, err)
 
 		// Don't set any presentation - it will return a default
 
@@ -217,7 +224,7 @@ func TestHandleSlides(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		var slidesResp SlidesResponse
-		err := json.Unmarshal(body, &slidesResp)
+		err = json.Unmarshal(body, &slidesResp)
 		require.NoError(t, err)
 		assert.Equal(t, "No Presentation Loaded", slidesResp.Title)
 
@@ -229,7 +236,8 @@ func TestHandleConfig(t *testing.T) {
 	t.Run("successful config response", func(t *testing.T) {
 		presenter := new(MockPresentationService)
 		renderer := new(MockRenderer)
-		server := NewServer(presenter, renderer, getTestServerConfig())
+		server, err := NewServer(presenter, renderer, getTestServerConfig())
+		require.NoError(t, err)
 
 		req := httptest.NewRequest("GET", "/api/config", nil)
 		w := httptest.NewRecorder()
@@ -243,7 +251,7 @@ func TestHandleConfig(t *testing.T) {
 		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 		var config ConfigResponse
-		err := json.Unmarshal(body, &config)
+		err = json.Unmarshal(body, &config)
 		require.NoError(t, err)
 
 		assert.Equal(t, "1.0.0", config.Version)
@@ -256,7 +264,8 @@ func TestHandleConfig(t *testing.T) {
 	t.Run("method not allowed", func(t *testing.T) {
 		presenter := new(MockPresentationService)
 		renderer := new(MockRenderer)
-		server := NewServer(presenter, renderer, getTestServerConfig())
+		server, err := NewServer(presenter, renderer, getTestServerConfig())
+		require.NoError(t, err)
 
 		req := httptest.NewRequest("DELETE", "/api/config", nil)
 		w := httptest.NewRecorder()
@@ -271,7 +280,8 @@ func TestHandleConfig(t *testing.T) {
 func TestPresentationToResponse(t *testing.T) {
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
-	server := NewServer(presenter, renderer, getTestServerConfig())
+	server, err := NewServer(presenter, renderer, getTestServerConfig())
+	require.NoError(t, err)
 
 	t.Run("full presentation", func(t *testing.T) {
 		presentation := &entities.Presentation{

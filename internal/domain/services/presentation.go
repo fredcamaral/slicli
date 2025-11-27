@@ -12,7 +12,10 @@ import (
 	"github.com/fredcamaral/slicli/internal/domain/ports"
 )
 
-// PresentationService implements the business logic for presentations
+// Compile-time interface compliance check
+var _ ports.PresentationService = (*PresentationService)(nil)
+
+// PresentationService implements the business logic for presentations.
 type PresentationService struct {
 	repo      ports.PresentationRepository
 	themeRepo ports.ThemeRepository

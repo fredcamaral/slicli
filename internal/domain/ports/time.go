@@ -29,7 +29,10 @@ type Timer interface {
 	Reset(d time.Duration) bool
 }
 
-// RealTimeProvider implements TimeProvider using standard time package
+// RealTimeProvider implements TimeProvider using standard time package.
+// TODO: Consider moving this implementation to internal/adapters/secondary/time
+// to better align with hexagonal architecture principles. The ports package should
+// ideally contain only interfaces, while implementations belong in adapters.
 type RealTimeProvider struct{}
 
 // NewRealTimeProvider creates a new real time provider implementation

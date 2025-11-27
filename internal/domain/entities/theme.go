@@ -33,7 +33,8 @@ type Theme struct {
 	Config map[string]interface{} `toml:"config" json:"config,omitempty"`
 }
 
-// Validate ensures the theme has valid required fields
+// Validate ensures the theme has valid required fields.
+// This method is pure and does not modify any state - use ApplyDefaults() for that.
 func (t *Theme) Validate() error {
 	if t.Name == "" {
 		return errors.New("theme name is required")
@@ -42,14 +43,6 @@ func (t *Theme) Validate() error {
 	// Name should be lowercase with only alphanumeric and hyphens
 	if !isValidThemeName(t.Name) {
 		return errors.New("theme name must contain only lowercase letters, numbers, and hyphens")
-	}
-
-	if t.DisplayName == "" {
-		t.DisplayName = t.Name
-	}
-
-	if t.Version == "" {
-		t.Version = "1.0.0"
 	}
 
 	// Ensure paths are relative
@@ -62,6 +55,18 @@ func (t *Theme) Validate() error {
 	}
 
 	return nil
+}
+
+// ApplyDefaults applies default values to optional fields.
+// Call this after validation if you need defaults applied.
+func (t *Theme) ApplyDefaults() {
+	if t.DisplayName == "" {
+		t.DisplayName = t.Name
+	}
+
+	if t.Version == "" {
+		t.Version = "1.0.0"
+	}
 }
 
 // GetTemplatePath returns the full path to a template file

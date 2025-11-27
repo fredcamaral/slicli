@@ -113,8 +113,9 @@ func TestTheme_Validate(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				require.NoError(t, err)
-				// Check defaults were applied
+				// Check defaults were applied after calling ApplyDefaults
 				if tt.name == "defaults applied" {
+					theme.ApplyDefaults()
 					assert.Equal(t, "test-theme", theme.DisplayName)
 					assert.Equal(t, "1.0.0", theme.Version)
 				}

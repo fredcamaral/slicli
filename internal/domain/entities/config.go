@@ -255,12 +255,11 @@ func (p PluginsConfig) Validate() error {
 		}
 	}
 
-	// Validate marketplace URL if provided
+	// Validate marketplace URL if provided - MUST use HTTPS for security
 	if p.MarketplaceURL != "" {
-		if len(p.MarketplaceURL) < 7 ||
-			(!strings.HasPrefix(p.MarketplaceURL, "http://") &&
-				!strings.HasPrefix(p.MarketplaceURL, "https://")) {
-			return fmt.Errorf("marketplace URL must start with http:// or https://: %s", p.MarketplaceURL)
+		if !strings.HasPrefix(p.MarketplaceURL, "https://") {
+			return fmt.Errorf("marketplace URL must use HTTPS for security (got: %s). "+
+				"HTTP connections are not allowed to prevent MITM attacks on plugin downloads", p.MarketplaceURL)
 		}
 	}
 
@@ -268,6 +267,9 @@ func (p PluginsConfig) Validate() error {
 }
 
 // GetMarketplaceURL returns the marketplace URL with environment override
+// Note: All marketplace URLs are validated to use HTTPS at config validation time
+// and when creating the marketplace client. This function does not re-validate
+// as that could cause silent failures; instead, validation happens at boundaries.
 func (p PluginsConfig) GetMarketplaceURL() string {
 	// Environment variable takes highest precedence
 	if envURL := os.Getenv("SLICLI_MARKETPLACE_URL"); envURL != "" {
@@ -279,8 +281,23 @@ func (p PluginsConfig) GetMarketplaceURL() string {
 		return p.MarketplaceURL
 	}
 
-	// Default fallback
+	// Default fallback (always HTTPS)
 	return "https://marketplace.slicli.dev"
+}
+
+// ValidateMarketplaceURL validates a marketplace URL for HTTPS requirement
+// This can be used to validate environment variables or dynamic URLs
+func ValidateMarketplaceURL(url string) error {
+	if url == "" {
+		return nil // Empty URL is valid (will use default)
+	}
+
+	if !strings.HasPrefix(url, "https://") {
+		return fmt.Errorf("marketplace URL must use HTTPS for security (got: %s). "+
+			"HTTP connections are not allowed to prevent MITM attacks on plugin downloads", url)
+	}
+
+	return nil
 }
 
 // Metadata contains presentation metadata defaults

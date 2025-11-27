@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/renderer/html"
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/fredcamaral/slicli/internal/domain/ports"
@@ -21,24 +19,21 @@ type PresentationParserAdapter struct {
 }
 
 // NewPresentationParserAdapter creates a new presentation parser adapter
+// using the shared factory for consistent configuration.
+// SECURITY: Uses secure defaults (no raw HTML rendering).
 func NewPresentationParserAdapter(markdownParser ports.MarkdownParser) *PresentationParserAdapter {
-	// Create a Goldmark instance for rendering HTML
-	md := goldmark.New(
-		goldmark.WithExtensions(
-			extension.GFM,
-			extension.Table,
-			extension.Strikethrough,
-			extension.TaskList,
-			extension.Typographer,
-		),
-		goldmark.WithRendererOptions(
-			html.WithUnsafe(),
-		),
-	)
-
 	return &PresentationParserAdapter{
 		markdownParser: markdownParser,
-		goldmark:       md,
+		goldmark:       NewConfiguredGoldmark(),
+	}
+}
+
+// NewPresentationParserAdapterWithConfig creates a new presentation parser adapter
+// with custom Goldmark configuration.
+func NewPresentationParserAdapterWithConfig(markdownParser ports.MarkdownParser, cfg GoldmarkConfig) *PresentationParserAdapter {
+	return &PresentationParserAdapter{
+		markdownParser: markdownParser,
+		goldmark:       NewGoldmarkWithConfig(cfg),
 	}
 }
 

@@ -18,6 +18,9 @@ type MemoryCache struct {
 	maxSize     int64
 	currentSize int64
 	stats       entities.CacheStats
+
+	// Cleanup goroutine control
+	done chan struct{}
 }
 
 type cacheEntry struct {
@@ -43,6 +46,7 @@ func NewMemoryCache(maxSize int64) *MemoryCache {
 		stats: entities.CacheStats{
 			MaxSize: int(maxSize),
 		},
+		done: nil, // cleanup not started by default
 	}
 }
 
@@ -237,11 +241,50 @@ func (c *MemoryCache) removeFromHeap(key string) {
 }
 
 // StartCleanupTimer starts a timer to periodically clean up expired entries.
-func (c *MemoryCache) StartCleanupTimer(interval time.Duration) {
+// Returns a cleanup function that should be called to stop the timer and release resources.
+// If cleanup is already running, this is a no-op and returns an empty function.
+func (c *MemoryCache) StartCleanupTimer(interval time.Duration) func() {
+	c.mu.Lock()
+	if c.done != nil {
+		// Cleanup already running
+		c.mu.Unlock()
+		return func() {}
+	}
+	c.done = make(chan struct{})
+	c.mu.Unlock()
+
 	ticker := time.NewTicker(interval)
+
 	go func() {
-		for range ticker.C {
-			c.Cleanup()
+		for {
+			select {
+			case <-ticker.C:
+				c.cleanupExpired()
+			case <-c.done:
+				ticker.Stop()
+				return
+			}
 		}
 	}()
+
+	return func() {
+		c.Stop()
+	}
+}
+
+// Stop stops the cleanup goroutine if it's running.
+// Safe to call multiple times.
+func (c *MemoryCache) Stop() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.done != nil {
+		close(c.done)
+		c.done = nil
+	}
+}
+
+// cleanupExpired removes expired entries (called by cleanup timer)
+func (c *MemoryCache) cleanupExpired() {
+	c.Cleanup()
 }

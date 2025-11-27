@@ -81,7 +81,8 @@ func (m *MockRenderer) RenderSlide(ctx context.Context, s *entities.Slide) ([]by
 func TestServerLifecycle(t *testing.T) {
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
-	server := NewServer(presenter, renderer, getTestServerConfig())
+	server, err := NewServer(presenter, renderer, getTestServerConfig())
+	require.NoError(t, err)
 
 	ctx := context.Background()
 
@@ -113,7 +114,8 @@ func TestServerLifecycle(t *testing.T) {
 func TestNotifyClients(t *testing.T) {
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
-	server := NewServer(presenter, renderer, getTestServerConfig())
+	server, err := NewServer(presenter, renderer, getTestServerConfig())
+	require.NoError(t, err)
 
 	ctx := context.Background()
 
@@ -145,7 +147,8 @@ func TestNotifyClients(t *testing.T) {
 func TestServerHTTPEndpoints(t *testing.T) {
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
-	server := NewServer(presenter, renderer, getTestServerConfig())
+	server, err := NewServer(presenter, renderer, getTestServerConfig())
+	require.NoError(t, err)
 
 	// Create test server directly
 	mux := server.setupRoutes()
@@ -173,12 +176,13 @@ func TestServerHTTPEndpoints(t *testing.T) {
 func TestBroadcastMethods(t *testing.T) {
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
-	server := NewServer(presenter, renderer, getTestServerConfig())
+	server, err := NewServer(presenter, renderer, getTestServerConfig())
+	require.NoError(t, err)
 
 	ctx := context.Background()
 
 	// Start server
-	err := server.Start(ctx, 0, "localhost")
+	err = server.Start(ctx, 0, "localhost")
 	require.NoError(t, err)
 	defer func() { _ = server.Stop(ctx) }()
 
@@ -197,15 +201,17 @@ func TestServerConfigValidation(t *testing.T) {
 	presenter := new(MockPresentationService)
 	renderer := new(MockRenderer)
 
-	t.Run("panics with nil config", func(t *testing.T) {
-		assert.Panics(t, func() {
-			NewServer(presenter, renderer, nil)
-		})
+	t.Run("returns error with nil config", func(t *testing.T) {
+		server, err := NewServer(presenter, renderer, nil)
+		assert.Error(t, err)
+		assert.Nil(t, server)
+		assert.Contains(t, err.Error(), "config cannot be nil")
 	})
 
 	t.Run("accepts valid config", func(t *testing.T) {
 		config := getTestServerConfig()
-		server := NewServer(presenter, renderer, config)
+		server, err := NewServer(presenter, renderer, config)
+		assert.NoError(t, err)
 		assert.NotNil(t, server)
 	})
 }

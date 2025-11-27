@@ -34,7 +34,7 @@ func TestImageRenderer_FallbackGeneration(t *testing.T) {
 		outputDir := filepath.Join(tmpDir, "images")
 
 		// Create renderer
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 
 		// Set up export options
 		options := &ExportOptions{
@@ -80,7 +80,7 @@ func TestImageRenderer_FallbackGeneration(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputDir := filepath.Join(tmpDir, "images")
 
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 		options := &ExportOptions{
 			Format:     FormatImages,
 			OutputPath: outputDir,
@@ -111,7 +111,7 @@ func TestImageRenderer_FallbackGeneration(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputDir := filepath.Join(tmpDir, "images")
 
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 		options := &ExportOptions{
 			Format:     FormatImages,
 			OutputPath: outputDir,
@@ -128,7 +128,7 @@ func TestImageRenderer_FallbackGeneration(t *testing.T) {
 
 func TestImageRenderer_HTMLParsing(t *testing.T) {
 	t.Run("parses HTML slide content correctly", func(t *testing.T) {
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 
 		htmlContent := `
 		<html>
@@ -152,7 +152,7 @@ func TestImageRenderer_HTMLParsing(t *testing.T) {
 	})
 
 	t.Run("detects code content", func(t *testing.T) {
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 
 		htmlContent := `
 		<html>
@@ -172,7 +172,7 @@ func TestImageRenderer_HTMLParsing(t *testing.T) {
 	})
 
 	t.Run("handles malformed HTML gracefully", func(t *testing.T) {
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 
 		htmlContent := `<div><h1>Incomplete HTML`
 
@@ -192,7 +192,7 @@ func TestImageRenderer_HTMLParsing(t *testing.T) {
 
 func TestImageRenderer_ProperImageGeneration(t *testing.T) {
 	t.Run("generates real PNG file", func(t *testing.T) {
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 
 		// Create a temporary HTML file
 		tmpDir := t.TempDir()
@@ -226,7 +226,7 @@ func TestImageRenderer_ProperImageGeneration(t *testing.T) {
 	})
 
 	t.Run("generates real JPEG file", func(t *testing.T) {
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 
 		// Create a temporary HTML file
 		tmpDir := t.TempDir()
@@ -262,7 +262,7 @@ func TestImageRenderer_ProperImageGeneration(t *testing.T) {
 
 func TestImageRenderer_TextWrapping(t *testing.T) {
 	t.Run("wraps long text correctly", func(t *testing.T) {
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 
 		// Create a mock graphics context for testing
 		dc := gg.NewContext(100, 100) // Small context to force wrapping
@@ -279,7 +279,7 @@ func TestImageRenderer_TextWrapping(t *testing.T) {
 	})
 
 	t.Run("preserves short text", func(t *testing.T) {
-		renderer := NewImageRenderer()
+		renderer := NewImageRendererWithFallback()
 
 		dc := gg.NewContext(1000, 1000) // Large context
 

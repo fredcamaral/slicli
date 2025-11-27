@@ -6,10 +6,9 @@ import (
 	"fmt"
 
 	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/renderer/html"
 
+	"github.com/fredcamaral/slicli/internal/adapters/secondary/parser"
+	"github.com/fredcamaral/slicli/internal/adapters/secondary/sanitizer"
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/fredcamaral/slicli/internal/domain/ports"
 )
@@ -20,25 +19,19 @@ type SlideRendererAdapter struct {
 }
 
 // NewSlideRendererAdapter creates a new slide renderer
+// using the shared factory for consistent configuration.
+// SECURITY: Uses secure defaults (no raw HTML rendering).
 func NewSlideRendererAdapter() *SlideRendererAdapter {
-	md := goldmark.New(
-		goldmark.WithExtensions(
-			extension.GFM,
-			extension.Typographer,
-			extension.Table,
-			extension.Strikethrough,
-			extension.TaskList,
-		),
-		goldmark.WithParserOptions(
-			parser.WithAutoHeadingID(),
-		),
-		goldmark.WithRendererOptions(
-			html.WithUnsafe(),
-		),
-	)
-
 	return &SlideRendererAdapter{
-		md: md,
+		md: parser.NewConfiguredGoldmark(),
+	}
+}
+
+// NewSlideRendererAdapterWithConfig creates a new slide renderer
+// with custom Goldmark configuration.
+func NewSlideRendererAdapterWithConfig(cfg parser.GoldmarkConfig) *SlideRendererAdapter {
+	return &SlideRendererAdapter{
+		md: parser.NewGoldmarkWithConfig(cfg),
 	}
 }
 
@@ -48,11 +41,13 @@ func (r *SlideRendererAdapter) RenderSlide(slide *entities.Slide) (*ports.Render
 		return nil, errors.New("slide cannot be nil")
 	}
 
-	// If HTML is already rendered, use it
+	// If HTML is already rendered, sanitize and use it
 	if slide.HTML != "" {
+		// SECURITY: Sanitize pre-rendered HTML to prevent XSS
+		sanitizedHTML := sanitizer.SanitizeHTML(slide.HTML)
 		return &ports.RenderedSlide{
 			Slide:     slide,
-			HTML:      slide.HTML,
+			HTML:      sanitizedHTML,
 			NotesHTML: r.renderNotes(slide.Notes),
 		}, nil
 	}
@@ -64,12 +59,15 @@ func (r *SlideRendererAdapter) RenderSlide(slide *entities.Slide) (*ports.Render
 		return nil, fmt.Errorf("rendering markdown: %w", err)
 	}
 
+	// SECURITY: Sanitize rendered HTML to prevent XSS
+	sanitizedHTML := sanitizer.SanitizeHTML(buf.String())
+
 	// Render notes if present
 	notesHTML := r.renderNotes(slide.Notes)
 
 	return &ports.RenderedSlide{
 		Slide:     slide,
-		HTML:      buf.String(),
+		HTML:      sanitizedHTML,
 		NotesHTML: notesHTML,
 	}, nil
 }
@@ -81,6 +79,7 @@ func (r *SlideRendererAdapter) renderNotes(notes string) string {
 	}
 
 	// Simple rendering - wrap in paragraphs
-	// In the future, we might want to support markdown in notes too
-	return fmt.Sprintf("<p>%s</p>", notes)
+	// SECURITY: Sanitize notes content to prevent XSS
+	sanitizedNotes := sanitizer.SanitizeHTML(notes)
+	return fmt.Sprintf("<p>%s</p>", sanitizedNotes)
 }

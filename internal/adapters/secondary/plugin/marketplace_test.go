@@ -70,8 +70,9 @@ func TestNewMarketplaceClient(t *testing.T) {
 
 	// This would require modifying NewMarketplaceClient to accept HTTPClient
 	// For now, let's test the existing functionality
-	client := NewMarketplaceClient(config)
+	client, err := NewMarketplaceClient(config)
 
+	require.NoError(t, err)
 	assert.NotNil(t, client)
 	assert.Equal(t, config.BaseURL, client.baseURL)
 	// Note: timeout and cacheTTL are not exposed as public fields in MarketplaceClient

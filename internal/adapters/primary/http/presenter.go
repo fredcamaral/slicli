@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/fredcamaral/slicli/internal/domain/ports"
@@ -18,25 +19,48 @@ type PresenterHandler struct {
 	syncService ports.PresentationSync
 	upgrader    websocket.Upgrader
 	logger      *HTTPLogger
+	config      *entities.ServerConfig
 }
 
 // NewPresenterHandler creates a new presenter handler
+// Deprecated: Use NewPresenterHandlerWithConfig instead for proper origin validation
 func NewPresenterHandler(sync ports.PresentationSync) *PresenterHandler {
-	return &PresenterHandler{
+	h := &PresenterHandler{
 		syncService: sync,
 		logger:      NewHTTPLogger("presenter", false),
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				// Allow all origins in development
-				// In production, this should be more restrictive
-				return true
-			},
+		config:      nil, // No config means development mode (allows all origins)
+	}
+	h.upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return h.isValidOrigin(r)
 		},
 	}
+	return h
+}
+
+// NewPresenterHandlerWithConfig creates a new presenter handler with server config for origin validation
+func NewPresenterHandlerWithConfig(sync ports.PresentationSync, config *entities.ServerConfig) *PresenterHandler {
+	h := &PresenterHandler{
+		syncService: sync,
+		logger:      NewHTTPLogger("presenter", false),
+		config:      config,
+	}
+	h.upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return h.isValidOrigin(r)
+		},
+	}
+	return h
 }
 
 // NewPresenterHandlerWithLogging creates a new presenter handler with logging configuration
+// Deprecated: Use NewPresenterHandlerFull instead for proper origin validation
 func NewPresenterHandlerWithLogging(sync ports.PresentationSync, loggingConfig *entities.LoggingConfig) *PresenterHandler {
+	return NewPresenterHandlerFull(sync, nil, loggingConfig)
+}
+
+// NewPresenterHandlerFull creates a new presenter handler with full configuration
+func NewPresenterHandlerFull(sync ports.PresentationSync, config *entities.ServerConfig, loggingConfig *entities.LoggingConfig) *PresenterHandler {
 	level := entities.LogLevelInfo
 	verbose := false
 
@@ -45,17 +69,46 @@ func NewPresenterHandlerWithLogging(sync ports.PresentationSync, loggingConfig *
 		verbose = loggingConfig.Verbose
 	}
 
-	return &PresenterHandler{
+	h := &PresenterHandler{
 		syncService: sync,
 		logger:      NewHTTPLoggerWithLevel("presenter", verbose, level),
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				// Allow all origins in development
-				// In production, this should be more restrictive
-				return true
-			},
+		config:      config,
+	}
+	h.upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return h.isValidOrigin(r)
 		},
 	}
+	return h
+}
+
+// isValidOrigin validates WebSocket connection origins
+func (h *PresenterHandler) isValidOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+
+	// No origin header - likely same-origin request
+	if origin == "" {
+		return true
+	}
+
+	// No config means development mode - allow all origins
+	if h.config == nil {
+		return true
+	}
+
+	// Check configured CORS origins
+	for _, allowed := range h.config.GetCORSOrigins() {
+		// Wildcard origin only allowed in development mode
+		if allowed == "*" && h.config.IsDevelopment() {
+			return true
+		}
+		if origin == allowed {
+			return true
+		}
+	}
+
+	// In development mode, be more permissive
+	return h.config.IsDevelopment()
 }
 
 // RegisterRoutes registers presenter mode routes
@@ -147,7 +200,7 @@ func (h *PresenterHandler) HandleNavigation(w http.ResponseWriter, r *http.Reque
 		Slide  int    `json:"slide,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONBody(w, r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -183,7 +236,7 @@ func (h *PresenterHandler) HandleTimer(w http.ResponseWriter, r *http.Request) {
 		Action string `json:"action"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONBody(w, r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -230,12 +283,12 @@ func (h *PresenterHandler) HandleState(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// generateClientID generates a unique client ID
+// generateClientID generates a unique client ID.
 func generateClientID() string {
 	bytes := make([]byte, 8)
 	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to timestamp-based ID
-		return fmt.Sprintf("client-%d", entities.SyncEvent{}.Timestamp.Unix())
+		// Fallback to timestamp-based ID using current time
+		return fmt.Sprintf("client-%d", time.Now().UnixNano())
 	}
 	return "client-" + hex.EncodeToString(bytes)
 }
