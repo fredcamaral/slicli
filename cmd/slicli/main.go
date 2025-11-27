@@ -11,11 +11,14 @@ import (
 )
 
 var (
-	// Version is set during build
+	// Version is set during build via -ldflags
 	Version = "dev"
 
-	// BuildDate is set during build
+	// BuildDate is set during build via -ldflags
 	BuildDate = "unknown"
+
+	// CommitSHA is set during build via -ldflags
+	CommitSHA = "unknown"
 )
 
 // rootCmd represents the base command
@@ -55,6 +58,7 @@ func init() {
 	// Set version template
 	rootCmd.SetVersionTemplate(`{{with .Name}}{{printf "%s " .}}{{end}}{{printf "version %s" .Version}}
 Build Date: ` + BuildDate + `
+Commit: ` + CommitSHA + `
 `)
 
 	// Add global flags

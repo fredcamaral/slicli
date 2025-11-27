@@ -74,18 +74,18 @@ func TestValidatePluginID(t *testing.T) {
 
 	t.Run("invalid characters rejected", func(t *testing.T) {
 		invalidIDs := []string{
-			"plugin name",  // space
-			"plugin@name",  // @
-			"plugin#name",  // #
-			"plugin$name",  // $
-			"plugin%name",  // %
-			"plugin&name",  // &
-			"plugin*name",  // *
-			"plugin!name",  // !
-			"plugin?name",  // ?
-			"<script>",     // HTML
-			";rm -rf /",    // shell command
-			"plugin`cmd`",  // backtick
+			"plugin name", // space
+			"plugin@name", // @
+			"plugin#name", // #
+			"plugin$name", // $
+			"plugin%name", // %
+			"plugin&name", // &
+			"plugin*name", // *
+			"plugin!name", // !
+			"plugin?name", // ?
+			"<script>",    // HTML
+			";rm -rf /",   // shell command
+			"plugin`cmd`", // backtick
 		}
 
 		for _, id := range invalidIDs {
@@ -200,17 +200,17 @@ func TestValidateAssetName(t *testing.T) {
 
 	t.Run("invalid characters rejected", func(t *testing.T) {
 		invalidNames := []string{
-			"file name.css",  // space
-			"file@name.css",  // @
-			"file#name.css",  // #
-			"file$name.css",  // $
-			"file%name.css",  // %
-			"file&name.css",  // &
-			"file*name.css",  // *
-			"file!name.css",  // !
-			"file?name.css",  // ?
-			"<script>.js",    // HTML chars
-			";rm -rf /.sh",   // shell command
+			"file name.css", // space
+			"file@name.css", // @
+			"file#name.css", // #
+			"file$name.css", // $
+			"file%name.css", // %
+			"file&name.css", // &
+			"file*name.css", // *
+			"file!name.css", // !
+			"file?name.css", // ?
+			"<script>.js",   // HTML chars
+			";rm -rf /.sh",  // shell command
 		}
 
 		for _, name := range invalidNames {

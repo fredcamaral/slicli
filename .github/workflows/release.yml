@@ -8,52 +8,220 @@ on:
 permissions:
   contents: write
 
+env:
+  GO_VERSION: '1.24.4'
+
 jobs:
-  release:
-    name: Release
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        goos: [linux, darwin, windows]
-        goarch: [amd64, arm64]
-        exclude:
-          - goos: windows
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: ''
+          - goos: linux
             goarch: arm64
+            suffix: ''
+          - goos: darwin
+            goarch: amd64
+            suffix: ''
+          - goos: darwin
+            goarch: arm64
+            suffix: ''
+          - goos: windows
+            goarch: amd64
+            suffix: '.exe'
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.4'
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - name: Build
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: 0
-      run: |
-        # Set binary name
-        BINARY_NAME="slicli"
-        if [ "$GOOS" = "windows" ]; then
-          BINARY_NAME="slicli.exe"
-        fi
-        
-        # Build
-        go build -ldflags="-s -w" -o "$BINARY_NAME" ./cmd/slicli
-        
-        # Create archive
-        if [ "$GOOS" = "windows" ]; then
-          zip "slicli-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "$BINARY_NAME"
-        else
-          tar -czf "slicli-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "$BINARY_NAME"
-        fi
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_short=${VERSION#v}" >> $GITHUB_OUTPUT
 
-    - name: Upload Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          *.tar.gz
-          *.zip
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          COMMIT_SHA=${GITHUB_SHA::8}
+
+          LDFLAGS="-s -w"
+          LDFLAGS="$LDFLAGS -X main.Version=$VERSION"
+          LDFLAGS="$LDFLAGS -X main.BuildDate=$BUILD_DATE"
+          LDFLAGS="$LDFLAGS -X main.CommitSHA=$COMMIT_SHA"
+
+          BINARY_NAME="slicli${{ matrix.suffix }}"
+
+          echo "Building $BINARY_NAME for $GOOS/$GOARCH..."
+          go build -ldflags="$LDFLAGS" -o "$BINARY_NAME" ./cmd/slicli
+
+      - name: Create archive
+        id: archive
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          ARCHIVE_BASE="slicli-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}"
+
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            ARCHIVE_NAME="${ARCHIVE_BASE}.zip"
+            zip "$ARCHIVE_NAME" slicli.exe
+          else
+            ARCHIVE_NAME="${ARCHIVE_BASE}.tar.gz"
+            tar -czf "$ARCHIVE_NAME" slicli
+          fi
+
+          echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Generate checksum
+        id: checksum
+        run: |
+          sha256sum ${{ steps.archive.outputs.archive_name }} > ${{ steps.archive.outputs.archive_name }}.sha256
+          cat ${{ steps.archive.outputs.archive_name }}.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            ${{ steps.archive.outputs.archive_name }}
+            ${{ steps.archive.outputs.archive_name }}.sha256
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: List artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          ls -la artifacts/
+
+      - name: Generate checksums file
+        run: |
+          cd artifacts
+          # Combine all individual checksums into one file
+          cat *.sha256 > checksums.txt
+          echo "Generated checksums.txt:"
+          cat checksums.txt
+          # Remove individual checksum files
+          rm -f *.sha256
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | head -n 2 | tail -n 1)
+          CURRENT_TAG=${{ steps.version.outputs.version }}
+
+          echo "Generating changelog from $PREVIOUS_TAG to $CURRENT_TAG"
+
+          # Generate changelog
+          {
+            echo "## What's Changed"
+            echo ""
+
+            if [ -n "$PREVIOUS_TAG" ] && [ "$PREVIOUS_TAG" != "$CURRENT_TAG" ]; then
+              # Get commits between tags
+              git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG".."$CURRENT_TAG" --no-merges | head -50
+            else
+              # First release - get recent commits
+              git log --pretty=format:"- %s (%h)" -20 --no-merges
+            fi
+
+            echo ""
+            echo ""
+            echo "## Checksums"
+            echo ""
+            echo '```'
+            cat artifacts/checksums.txt
+            echo '```'
+            echo ""
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${{ steps.version.outputs.version }}"
+          } > RELEASE_NOTES.md
+
+          echo "Generated release notes:"
+          cat RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          files: |
+            artifacts/*.tar.gz
+            artifacts/*.zip
+            artifacts/checksums.txt
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  verify:
+    name: Verify Release
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download and verify Linux binary
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          ARCHIVE="slicli-${VERSION}-linux-amd64.tar.gz"
+
+          echo "Downloading $ARCHIVE..."
+          gh release download "$VERSION" \
+            --repo "${{ github.repository }}" \
+            --pattern "$ARCHIVE" \
+            --pattern "checksums.txt"
+
+          echo "Verifying checksum..."
+          grep "$ARCHIVE" checksums.txt | sha256sum -c -
+
+          echo "Extracting and testing binary..."
+          tar -xzf "$ARCHIVE"
+          ./slicli --version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

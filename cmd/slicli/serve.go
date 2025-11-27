@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -13,9 +14,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -40,6 +43,101 @@ const (
 	// PrismThemeCDN is the CDN URL for the default PrismJS theme stylesheet
 	PrismThemeCDN = "https://unpkg.com/prismjs@1/themes/prism.css"
 )
+
+// SlideData represents a single slide with its content and metadata
+type SlideData struct {
+	Index        int    `json:"index"`
+	HTMLContent  string `json:"htmlContent"`
+	SpeakerNotes string `json:"speakerNotes"`
+	SlideClass   string `json:"slideClass"`
+}
+
+// PresentationData holds all slide data for presenter mode
+type PresentationData struct {
+	Slides     []SlideData `json:"slides"`
+	TotalCount int         `json:"totalCount"`
+	FilePath   string      `json:"filePath"`
+	ThemeName  string      `json:"themeName"`
+}
+
+// WebSocketMessage represents a message sent over WebSocket for slide synchronization
+type WebSocketMessage struct {
+	Type       string `json:"type"`       // "slide_change", "presenter_ready", "audience_ready"
+	SlideIndex int    `json:"slideIndex"` // Current slide index (1-based)
+	Source     string `json:"source"`     // "presenter" or "audience"
+}
+
+// SlideHub manages WebSocket connections for slide synchronization
+type SlideHub struct {
+	clients      map[*websocket.Conn]string // conn -> source type
+	broadcast    chan WebSocketMessage
+	register     chan *websocket.Conn
+	unregister   chan *websocket.Conn
+	currentSlide int
+	mu           sync.RWMutex
+}
+
+// NewSlideHub creates a new SlideHub for managing WebSocket connections
+func NewSlideHub() *SlideHub {
+	return &SlideHub{
+		clients:      make(map[*websocket.Conn]string),
+		broadcast:    make(chan WebSocketMessage, 256),
+		register:     make(chan *websocket.Conn),
+		unregister:   make(chan *websocket.Conn),
+		currentSlide: 1,
+	}
+}
+
+// Run starts the hub's main loop for managing connections and broadcasts
+func (h *SlideHub) Run() {
+	for {
+		select {
+		case conn := <-h.register:
+			h.mu.Lock()
+			h.clients[conn] = "unknown"
+			h.mu.Unlock()
+
+		case conn := <-h.unregister:
+			h.mu.Lock()
+			if _, ok := h.clients[conn]; ok {
+				delete(h.clients, conn)
+				conn.Close()
+			}
+			h.mu.Unlock()
+
+		case msg := <-h.broadcast:
+			h.mu.Lock()
+			if msg.Type == "slide_change" {
+				h.currentSlide = msg.SlideIndex
+			}
+			for conn := range h.clients {
+				if err := conn.WriteJSON(msg); err != nil {
+					conn.Close()
+					delete(h.clients, conn)
+				}
+			}
+			h.mu.Unlock()
+		}
+	}
+}
+
+// SetClientType sets the type of a connected client (presenter or audience)
+func (h *SlideHub) SetClientType(conn *websocket.Conn, clientType string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.clients[conn] = clientType
+}
+
+// GetCurrentSlide returns the current slide index
+func (h *SlideHub) GetCurrentSlide() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.currentSlide
+}
+
+// speakerNotesPattern matches HTML comments containing speaker notes
+// Format: <!-- Notes: ... -->
+var speakerNotesPattern = regexp.MustCompile(`(?s)<!--\s*Notes:\s*(.*?)\s*-->`)
 
 // ErrPathTraversal is returned when a path contains traversal sequences
 var ErrPathTraversal = errors.New("path traversal detected")
@@ -116,12 +214,85 @@ func SafeFilePath(baseDir, requestedPath string) (string, error) {
 
 var (
 	// Serve command flags
-	port       int
-	host       string
-	noBrowser  bool
-	themeName  string
-	watchFiles bool
+	port          int
+	host          string
+	noBrowser     bool
+	themeName     string
+	watchFiles    bool
+	presenterPort int
+
+	// Theme override flags
+	overridePrimary     string
+	overrideSecondary   string
+	overrideBackground  string
+	overrideText        string
+	overrideFontHeading string
+	overrideFontBody    string
+	overrideFontSize    string
 )
+
+// ThemeOverrides holds CLI-specified theme customizations
+type ThemeOverrides struct {
+	Primary     string // Primary color (hex, e.g., #ff0000)
+	Secondary   string // Secondary color (hex)
+	Background  string // Background color (hex)
+	Text        string // Text color (hex)
+	FontHeading string // Heading font family
+	FontBody    string // Body font family
+	FontSize    string // Base font size (e.g., "18px")
+}
+
+// HasOverrides returns true if any override is set
+func (t ThemeOverrides) HasOverrides() bool {
+	return t.Primary != "" || t.Secondary != "" || t.Background != "" ||
+		t.Text != "" || t.FontHeading != "" || t.FontBody != "" || t.FontSize != ""
+}
+
+// ToCSS generates CSS custom properties for the overrides.
+// Only includes properties that were actually specified.
+func (t ThemeOverrides) ToCSS() string {
+	if !t.HasOverrides() {
+		return ""
+	}
+
+	var cssVars []string
+	if t.Primary != "" {
+		cssVars = append(cssVars, fmt.Sprintf("--override-primary: %s;", t.Primary))
+	}
+	if t.Secondary != "" {
+		cssVars = append(cssVars, fmt.Sprintf("--override-secondary: %s;", t.Secondary))
+	}
+	if t.Background != "" {
+		cssVars = append(cssVars, fmt.Sprintf("--override-background: %s;", t.Background))
+	}
+	if t.Text != "" {
+		cssVars = append(cssVars, fmt.Sprintf("--override-text: %s;", t.Text))
+	}
+	if t.FontHeading != "" {
+		cssVars = append(cssVars, fmt.Sprintf("--override-font-heading: %s;", t.FontHeading))
+	}
+	if t.FontBody != "" {
+		cssVars = append(cssVars, fmt.Sprintf("--override-font-body: %s;", t.FontBody))
+	}
+	if t.FontSize != "" {
+		cssVars = append(cssVars, fmt.Sprintf("--override-font-size: %s;", t.FontSize))
+	}
+
+	return fmt.Sprintf(":root {\n    %s\n}", strings.Join(cssVars, "\n    "))
+}
+
+// collectThemeOverrides gathers theme overrides from CLI flags
+func collectThemeOverrides() ThemeOverrides {
+	return ThemeOverrides{
+		Primary:     overridePrimary,
+		Secondary:   overrideSecondary,
+		Background:  overrideBackground,
+		Text:        overrideText,
+		FontHeading: overrideFontHeading,
+		FontBody:    overrideFontBody,
+		FontSize:    overrideFontSize,
+	}
+}
 
 // Logger provides structured logging for the serve command
 type Logger struct {
@@ -212,6 +383,16 @@ func init() {
 	serveCmd.Flags().BoolVar(&noBrowser, "no-browser", false, "Don't open browser automatically (overrides config)")
 	serveCmd.Flags().StringVarP(&themeName, "theme", "t", "", "Theme to use (overrides config)")
 	serveCmd.Flags().BoolVarP(&watchFiles, "watch", "w", false, "Watch files for changes (overrides config)")
+	serveCmd.Flags().IntVar(&presenterPort, "presenter-port", 0, "Port for presenter view (enables presenter mode)")
+
+	// Theme override flags - allow customizing theme colors and fonts via CLI
+	serveCmd.Flags().StringVar(&overridePrimary, "override-primary", "", "Override theme primary color (hex, e.g., #ff0000)")
+	serveCmd.Flags().StringVar(&overrideSecondary, "override-secondary", "", "Override theme secondary color (hex, e.g., #00ff00)")
+	serveCmd.Flags().StringVar(&overrideBackground, "override-background", "", "Override theme background color (hex, e.g., #ffffff)")
+	serveCmd.Flags().StringVar(&overrideText, "override-text", "", "Override theme text color (hex, e.g., #333333)")
+	serveCmd.Flags().StringVar(&overrideFontHeading, "override-font-heading", "", "Override heading font family (e.g., 'Arial, sans-serif')")
+	serveCmd.Flags().StringVar(&overrideFontBody, "override-font-body", "", "Override body font family (e.g., 'Georgia, serif')")
+	serveCmd.Flags().StringVar(&overrideFontSize, "override-font-size", "", "Override base font size (e.g., '18px')")
 }
 
 // validateServeArgs validates serve command arguments without starting server
@@ -246,6 +427,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Collect theme overrides from CLI flags
+	themeOverrides := collectThemeOverrides()
+
 	// Get verbose flag and create logger with logging configuration
 	verbose, _ := cmd.Flags().GetBool("verbose")
 
@@ -257,17 +441,61 @@ func runServe(cmd *cobra.Command, args []string) error {
 	logger := newLoggerWithLevel(verbose, finalConfig.Logging.GetLevel())
 	printStartupInfo(logger, presentationPath, finalConfig)
 
-	// Load presentation content
-	htmlContent, err := loadPresentationContent(presentationPath, finalConfig)
+	// Read markdown content
+	markdownContent, err := os.ReadFile(presentationPath) // #nosec G304 - path validated
 	if err != nil {
-		return err
+		return fmt.Errorf("reading presentation file: %w", err)
 	}
 
-	// Create HTTP server
-	server := createHTTPServer(finalConfig, htmlContent)
+	// Check if presenter mode is enabled
+	presenterModeEnabled := presenterPort > 0
+
+	var hub *SlideHub
+	var htmlContent string
+
+	if presenterModeEnabled {
+		// Process markdown with speaker notes extraction
+		presentationData := processMarkdownToSlidesWithNotes(string(markdownContent), presentationPath, finalConfig)
+
+		// Create SlideHub for WebSocket synchronization
+		hub = NewSlideHub()
+		go hub.Run()
+
+		// Generate audience HTML with sync support
+		slidesHTML := generateSlidesHTMLFromData(presentationData)
+		htmlContent = generateAudienceHTMLWithSync(slidesHTML, presentationPath, finalConfig, finalConfig.Server.Port, themeOverrides)
+
+		// Create and start presenter server
+		presenterServer := createPresenterHTTPServer(finalConfig, presentationData, hub, finalConfig.Server.Port)
+
+		// Start presenter server in background
+		go func() {
+			logger.Info("Presenter view available at: http://%s:%d", finalConfig.Server.Host, presenterPort)
+			if err := presenterServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Error("Presenter server error: %v", err)
+			}
+		}()
+	} else {
+		// Standard mode without presenter features
+		htmlContent = processMarkdownToSlides(string(markdownContent), presentationPath, finalConfig, themeOverrides)
+	}
+
+	// Create main HTTP server
+	server := createHTTPServerWithHub(finalConfig, htmlContent, hub)
 
 	// Start server and handle lifecycle
 	return startAndManageServer(server, finalConfig, logger)
+}
+
+// generateSlidesHTMLFromData generates HTML slides from PresentationData
+func generateSlidesHTMLFromData(data PresentationData) string {
+	var htmlSlides []string
+	for _, slide := range data.Slides {
+		slideHTML := fmt.Sprintf(`<div class="slide %s" id="slide-%d">%s</div>`,
+			slide.SlideClass, slide.Index, slide.HTMLContent)
+		htmlSlides = append(htmlSlides, slideHTML)
+	}
+	return strings.Join(htmlSlides, "\n")
 }
 
 // loadAndValidateConfig loads configuration and validates it
@@ -304,7 +532,7 @@ func printStartupInfo(logger *Logger, presentationPath string, config *entities.
 }
 
 // loadPresentationContent validates and loads the presentation file content
-func loadPresentationContent(presentationPath string, config *entities.Config) (string, error) {
+func loadPresentationContent(presentationPath string, config *entities.Config, overrides ThemeOverrides) (string, error) {
 	// Validate and read the presentation file
 	fileInfo, err := os.Stat(presentationPath)
 	if err != nil {
@@ -321,7 +549,7 @@ func loadPresentationContent(presentationPath string, config *entities.Config) (
 	}
 
 	// Process markdown into HTML slides
-	return processMarkdownToSlides(string(markdownContent), presentationPath, config), nil
+	return processMarkdownToSlides(string(markdownContent), presentationPath, config, overrides), nil
 }
 
 // createHTTPServer creates and configures the HTTP server with handlers
@@ -345,6 +573,75 @@ func createHTTPServer(config *entities.Config, htmlContent string) *http.Server 
 		WriteTimeout: config.Server.GetWriteTimeout(),
 		IdleTimeout:  60 * time.Second,
 	}
+}
+
+// createHTTPServerWithHub creates the HTTP server with optional WebSocket support for presenter mode
+func createHTTPServerWithHub(config *entities.Config, htmlContent string, hub *SlideHub) *http.Server {
+	mux := http.NewServeMux()
+
+	// Serve the presentation
+	mux.HandleFunc("/", createPresentationHandler(htmlContent))
+
+	// Serve static assets
+	mux.HandleFunc("/assets/", createAssetsHandler())
+
+	// Serve theme assets
+	mux.HandleFunc("/themes/", createThemeAssetsHandler())
+
+	// Add WebSocket handler if presenter mode is enabled (hub is provided)
+	if hub != nil {
+		mux.HandleFunc("/ws", createWebSocketHandler(hub))
+	}
+
+	// Choose security middleware based on whether WebSocket support is needed
+	var handler http.Handler
+	if hub != nil {
+		handler = securityMiddlewareWithWebSocket(mux)
+	} else {
+		handler = securityMiddleware(mux)
+	}
+
+	// Create HTTP server using configuration values with security middleware
+	return &http.Server{
+		Addr:         fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port),
+		Handler:      handler,
+		ReadTimeout:  config.Server.GetReadTimeout(),
+		WriteTimeout: config.Server.GetWriteTimeout(),
+		IdleTimeout:  60 * time.Second,
+	}
+}
+
+// securityMiddlewareWithWebSocket adds security headers with WebSocket CSP support
+func securityMiddlewareWithWebSocket(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Prevent clickjacking
+		w.Header().Set("X-Frame-Options", "DENY")
+
+		// Prevent MIME type sniffing
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+
+		// Enable XSS filter in browsers
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+
+		// Content Security Policy with WebSocket support
+		// Allow self, inline styles/scripts, CDN resources, and WebSocket connections
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; "+
+				"script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "+
+				"style-src 'self' 'unsafe-inline' https://unpkg.com; "+
+				"img-src 'self' data: https:; "+
+				"font-src 'self' data:; "+
+				"connect-src 'self' ws: wss:; "+
+				"frame-ancestors 'none'")
+
+		// Referrer policy for privacy
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Permissions policy (formerly Feature-Policy)
+		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // securityMiddleware adds security headers to all HTTP responses
@@ -865,7 +1162,7 @@ func applyCliFlags(cmd *cobra.Command, config *entities.Config) {
 }
 
 // processMarkdownToSlides converts markdown content to HTML slides
-func processMarkdownToSlides(markdown, filePath string, config *entities.Config) string {
+func processMarkdownToSlides(markdown, filePath string, config *entities.Config, overrides ThemeOverrides) string {
 	// Split markdown by slide separator (---)
 	slides := strings.Split(markdown, "\n---\n")
 
@@ -889,7 +1186,7 @@ func processMarkdownToSlides(markdown, filePath string, config *entities.Config)
 	}
 
 	// Generate complete HTML page
-	return generatePresentationHTML(strings.Join(htmlSlides, "\n"), filePath, config)
+	return generatePresentationHTML(strings.Join(htmlSlides, "\n"), filePath, config, overrides)
 }
 
 // basicMarkdownToHTML provides complete markdown to HTML conversion using Goldmark
@@ -1212,7 +1509,7 @@ func processInlinePattern(text, pattern, replacement string) string {
 }
 
 // generatePresentationHTML creates the complete HTML page with plugin assets
-func generatePresentationHTML(slidesHTML, filePath string, config *entities.Config) string {
+func generatePresentationHTML(slidesHTML, filePath string, config *entities.Config, overrides ThemeOverrides) string {
 	// TODO: In a real implementation, we would get the plugin renderer instance
 	// to access stored assets and include them in the HTML head section
 	// For now, we include default assets and common plugin dependencies
@@ -1224,9 +1521,17 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
     <script src="%s"></script>
     <link rel="stylesheet" href="%s">`, MermaidCDN, PrismCoreCDN, PrismAutoloaderCDN, PrismThemeCDN)
 
-	themeName := "default"
+	themeNameLocal := "default"
 	if config != nil && config.Theme.Name != "" {
-		themeName = config.Theme.Name
+		themeNameLocal = config.Theme.Name
+	}
+
+	// Generate theme override CSS if any overrides are set
+	overrideCSS := ""
+	if overrides.HasOverrides() {
+		overrideCSS = fmt.Sprintf(`
+        /* Theme overrides from CLI flags */
+        %s`, overrides.ToCSS())
 	}
 
 	// Build the HTML template with placeholders
@@ -1236,7 +1541,7 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SLICLI Presentation</title>
-    <style>
+    <style>{OVERRIDE_CSS}
         /* Minimal base reset - let theme handle everything else */
         html, body {
             margin: 0;
@@ -1245,15 +1550,223 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
             height: 100%;
             overflow: hidden;
         }
-        
+
         /* Initial slide setup - hide all slides by default */
         .slide {
             display: none !important;
         }
-        
+
         /* Show only the first slide initially */
         .slide:first-child {
             display: flex !important;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+            z-index: 1000;
+        }
+
+        /* Help modal styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.visible .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-content h2 {
+            margin: 0 0 1.5rem 0;
+            color: #fff;
+            font-size: 1.5rem;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+
+        .modal-content table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .modal-content td {
+            padding: 0.5rem 0;
+            color: #e0e0e0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-content td:first-child {
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            color: #667eea;
+            font-weight: bold;
+            width: 100px;
+        }
+
+        .modal-close-btn {
+            display: block;
+            width: 100%;
+            margin-top: 1.5rem;
+            padding: 0.75rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+        }
+
+        .modal-close-btn:hover {
+            background: #5a67d8;
+        }
+
+        /* Blank screen overlay */
+        .blank-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 1500;
+            cursor: pointer;
+        }
+
+        .blank-overlay.visible {
+            display: block;
+        }
+
+        /* Go to slide input */
+        .goto-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .goto-overlay.visible {
+            display: flex;
+        }
+
+        .goto-input-container {
+            background: #1a1a2e;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .goto-input-container label {
+            display: block;
+            color: #fff;
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .goto-input-container input {
+            width: 80px;
+            padding: 0.5rem;
+            font-size: 1.5rem;
+            text-align: center;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            background: #16213e;
+            color: #fff;
+            outline: none;
+        }
+
+        .goto-input-container input:focus {
+            border-color: #764ba2;
+        }
+
+        /* Fullscreen adjustments */
+        .fullscreen .navigation {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .fullscreen .navigation:hover {
+            opacity: 1;
+        }
+
+        .fullscreen .presentation-info {
+            display: none;
+        }
+
+        /* Help button in navigation */
+        .help-btn {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: all 0.2s;
+            margin-left: 1rem;
+        }
+
+        .help-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        /* Fullscreen button */
+        .fullscreen-btn {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .fullscreen-btn:hover {
+            background: #667eea;
+            color: white;
         }
     </style>
     <!-- Main CSS is optional, theme should override -->
@@ -1266,23 +1779,67 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
     <div class="slides-container">
         {SLIDES_HTML}
     </div>
+
+    <!-- Progress bar -->
+    <div class="progress-bar" id="progress-bar"></div>
+
+    <!-- Blank screen overlay -->
+    <div class="blank-overlay" id="blank-overlay" onclick="toggleBlankScreen()"></div>
+
+    <!-- Help modal -->
+    <div class="modal-overlay" id="help-modal">
+        <div class="modal-content">
+            <h2>Keyboard Shortcuts</h2>
+            <table>
+                <tr><td>Left/Right</td><td>Previous/Next slide</td></tr>
+                <tr><td>Home/End</td><td>First/Last slide</td></tr>
+                <tr><td>1-9, 0</td><td>Jump to slide 1-10</td></tr>
+                <tr><td>G</td><td>Go to specific slide</td></tr>
+                <tr><td>F</td><td>Toggle fullscreen</td></tr>
+                <tr><td>B or .</td><td>Blank screen (pause)</td></tr>
+                <tr><td>? or H</td><td>Show this help</td></tr>
+                <tr><td>Esc</td><td>Exit fullscreen/Close modal</td></tr>
+            </table>
+            <button class="modal-close-btn" onclick="hideHelp()">Close</button>
+        </div>
+    </div>
+
+    <!-- Go to slide input -->
+    <div class="goto-overlay" id="goto-overlay">
+        <div class="goto-input-container">
+            <label for="goto-input">Go to slide:</label>
+            <input type="number" id="goto-input" min="1" max="{SLIDE_COUNT}" autofocus>
+        </div>
+    </div>
+
     <div class="navigation">
-        <button onclick="previousSlide()">←</button>
+        <button onclick="previousSlide()" title="Previous slide (Left arrow)">&#8592;</button>
         <span class="slide-counter">
             <span id="current-slide">1</span> / <span id="total-slides">{SLIDE_COUNT}</span>
         </span>
-        <button onclick="nextSlide()">→</button>
+        <button onclick="nextSlide()" title="Next slide (Right arrow)">&#8594;</button>
+        <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen (F)">&#x26F6;</button>
+        <button class="help-btn" onclick="showHelp()" title="Help (?)">?</button>
     </div>
     <div class="presentation-info">
         <strong>File:</strong> {FILE_PATH}
         <strong>Theme:</strong> {THEME_NAME}
     </div>
     <script>
-        // Basic slide navigation
+        // State variables
         let currentSlide = 1;
         const slides = document.querySelectorAll('.slide');
         const totalSlides = slides.length;
-        
+        let isBlankScreen = false;
+        let isHelpVisible = false;
+        let isGotoVisible = false;
+
+        // Update progress bar
+        function updateProgressBar() {
+            const progress = (currentSlide / totalSlides) * 100;
+            document.getElementById('progress-bar').style.width = progress + '%';
+        }
+
         function showSlide(n) {
             slides.forEach(slide => {
                 slide.style.display = 'none';
@@ -1292,74 +1849,259 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
             if (currentSlide > totalSlides) currentSlide = 1;
             if (currentSlide < 1) currentSlide = totalSlides;
             const activeSlide = slides[currentSlide - 1];
-            activeSlide.style.setProperty('display', 'flex', 'important'); // Override CSS with important
+            activeSlide.style.setProperty('display', 'flex', 'important');
             document.getElementById('current-slide').textContent = currentSlide;
             document.getElementById('total-slides').textContent = totalSlides;
+            updateProgressBar();
         }
-        
+
         function nextSlide() {
             showSlide(currentSlide + 1);
         }
-        
+
         function previousSlide() {
             showSlide(currentSlide - 1);
         }
-        
+
+        // Help modal functions
+        function showHelp() {
+            const modal = document.getElementById('help-modal');
+            modal.classList.add('visible');
+            isHelpVisible = true;
+        }
+
+        function hideHelp() {
+            const modal = document.getElementById('help-modal');
+            modal.classList.remove('visible');
+            isHelpVisible = false;
+        }
+
+        // Fullscreen functions
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().then(() => {
+                    document.body.classList.add('fullscreen');
+                }).catch(err => {
+                    console.error('Fullscreen error:', err);
+                });
+            } else {
+                document.exitFullscreen().then(() => {
+                    document.body.classList.remove('fullscreen');
+                }).catch(err => {
+                    console.error('Exit fullscreen error:', err);
+                });
+            }
+        }
+
+        // Listen for fullscreen changes (e.g., when user presses Esc in fullscreen)
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                document.body.classList.remove('fullscreen');
+            }
+        });
+
+        // Blank screen functions
+        function toggleBlankScreen() {
+            const overlay = document.getElementById('blank-overlay');
+            isBlankScreen = !isBlankScreen;
+            if (isBlankScreen) {
+                overlay.classList.add('visible');
+            } else {
+                overlay.classList.remove('visible');
+            }
+        }
+
+        // Go to slide functions
+        function showGotoInput() {
+            const overlay = document.getElementById('goto-overlay');
+            const input = document.getElementById('goto-input');
+            overlay.classList.add('visible');
+            input.value = '';
+            input.focus();
+            isGotoVisible = true;
+        }
+
+        function hideGotoInput() {
+            const overlay = document.getElementById('goto-overlay');
+            overlay.classList.remove('visible');
+            isGotoVisible = false;
+        }
+
+        function handleGotoInput(e) {
+            if (e.key === 'Enter') {
+                const input = document.getElementById('goto-input');
+                const slideNum = parseInt(input.value, 10);
+                if (slideNum >= 1 && slideNum <= totalSlides) {
+                    showSlide(slideNum);
+                }
+                hideGotoInput();
+            } else if (e.key === 'Escape') {
+                hideGotoInput();
+            }
+        }
+
+        // Set up goto input listener
+        document.getElementById('goto-input').addEventListener('keydown', handleGotoInput);
+
+        // Click outside goto overlay to close
+        document.getElementById('goto-overlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideGotoInput();
+            }
+        });
+
+        // Click outside help modal to close
+        document.getElementById('help-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideHelp();
+            }
+        });
+
         // Keyboard navigation
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowRight') nextSlide();
-            if (e.key === 'ArrowLeft') previousSlide();
+            // If goto input is visible, let it handle its own keys
+            if (isGotoVisible) {
+                return;
+            }
+
+            // Handle Escape key
+            if (e.key === 'Escape') {
+                if (isHelpVisible) {
+                    hideHelp();
+                    return;
+                }
+                if (isBlankScreen) {
+                    toggleBlankScreen();
+                    return;
+                }
+                // Fullscreen exit is handled by the browser
+                return;
+            }
+
+            // If help modal is visible, only respond to Escape (handled above)
+            if (isHelpVisible) {
+                return;
+            }
+
+            // If blank screen is visible, only respond to B, ., or Escape
+            if (isBlankScreen) {
+                if (e.key === 'b' || e.key === 'B' || e.key === '.') {
+                    toggleBlankScreen();
+                }
+                return;
+            }
+
+            // Navigation keys
+            switch (e.key) {
+                case 'ArrowRight':
+                case 'PageDown':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                case 'PageUp':
+                    e.preventDefault();
+                    previousSlide();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    showSlide(1);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    showSlide(totalSlides);
+                    break;
+                case 'f':
+                case 'F':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case '?':
+                case 'h':
+                case 'H':
+                    e.preventDefault();
+                    showHelp();
+                    break;
+                case 'b':
+                case 'B':
+                case '.':
+                    e.preventDefault();
+                    toggleBlankScreen();
+                    break;
+                case 'g':
+                case 'G':
+                    e.preventDefault();
+                    showGotoInput();
+                    break;
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                    e.preventDefault();
+                    const slideNum = parseInt(e.key, 10);
+                    if (slideNum <= totalSlides) {
+                        showSlide(slideNum);
+                    }
+                    break;
+                case '0':
+                    e.preventDefault();
+                    if (totalSlides >= 10) {
+                        showSlide(10);
+                    }
+                    break;
+            }
         });
-        
+
         // Initialize first slide and hide others
         showSlide(1);
-        
+
         // Ensure proper slide display on load
         document.addEventListener('DOMContentLoaded', function() {
             // Hide all slides except the first
             slides.forEach((slide, index) => {
                 if (index === 0) {
-                    slide.style.display = 'flex'; // Use flex as per theme CSS
+                    slide.style.display = 'flex';
                 } else {
                     slide.style.display = 'none';
                 }
             });
+            updateProgressBar();
         });
-        
+
         // Initialize Mermaid after slides are set up
         async function initializeMermaid() {
             if (typeof mermaid !== 'undefined') {
                 mermaid.initialize({
-                    startOnLoad: false,  // Don't auto-start
+                    startOnLoad: false,
                     theme: 'dark',
-                    securityLevel: 'strict'  // SECURITY: Use strict mode to prevent XSS in diagram labels
+                    securityLevel: 'strict'
                 });
-                
-                // Manually render all visible mermaid diagrams
+
                 try {
                     const mermaidElements = document.querySelectorAll('.mermaid');
                     console.log('Found', mermaidElements.length, 'mermaid elements');
-                    
+
                     for (let i = 0; i < mermaidElements.length; i++) {
                         const element = mermaidElements[i];
-                        
-                        // Get the original markdown content from data attribute or textContent
                         let graphDefinition = element.getAttribute('data-original') || element.textContent || element.innerText || '';
-                        
-                        // If we got the processed content, skip this element (already rendered)
+
                         if (graphDefinition.includes('#mermaid-') || graphDefinition.includes('font-family')) {
                             console.log('Skipping diagram', i, '- already rendered or contains styling');
                             return;
                         }
-                        
-                        // Clean up the definition
+
                         graphDefinition = graphDefinition.trim();
                         graphDefinition = graphDefinition.replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
-                        
+
                         const id = 'mermaid-' + i;
-                        
                         console.log('Rendering diagram', i, 'content:', JSON.stringify(graphDefinition));
-                        
+
                         try {
                             const { svg } = await mermaid.render(id, graphDefinition);
                             element.innerHTML = svg;
@@ -1375,14 +2117,14 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
                 }
             }
         }
-        
+
         // Wait for DOM and scripts to be ready
         document.addEventListener('DOMContentLoaded', async function() {
             // Initialize Prism.js for syntax highlighting
             if (window.Prism) {
                 Prism.highlightAll();
             }
-            
+
             // Initialize Mermaid after a short delay to ensure everything is loaded
             setTimeout(async () => {
                 await initializeMermaid();
@@ -1396,12 +2138,876 @@ func generatePresentationHTML(slidesHTML, filePath string, config *entities.Conf
 	slideCount := len(strings.Split(slidesHTML, `<div class="slide"`)) - 1
 
 	// Replace placeholders
-	html := strings.ReplaceAll(htmlTemplate, "{THEME_NAME}", themeName)
+	html := strings.ReplaceAll(htmlTemplate, "{THEME_NAME}", themeNameLocal)
 	html = strings.ReplaceAll(html, "{PLUGIN_ASSETS}", pluginAssets)
 	html = strings.ReplaceAll(html, "{SLIDES_HTML}", slidesHTML)
 	html = strings.ReplaceAll(html, "{FILE_PATH}", filePath)
 	html = strings.ReplaceAll(html, "{SLIDE_COUNT}", fmt.Sprintf("%d", slideCount))
+	html = strings.ReplaceAll(html, "{OVERRIDE_CSS}", overrideCSS)
 	return html
+}
+
+// extractSpeakerNotes extracts speaker notes from HTML comments in slide content
+// Notes are expected in format: <!-- Notes: ... -->
+func extractSpeakerNotes(slideContent string) string {
+	matches := speakerNotesPattern.FindStringSubmatch(slideContent)
+	if len(matches) >= 2 {
+		return strings.TrimSpace(matches[1])
+	}
+	return ""
+}
+
+// removeSpeakerNotes removes speaker notes comments from slide content
+func removeSpeakerNotes(slideContent string) string {
+	return speakerNotesPattern.ReplaceAllString(slideContent, "")
+}
+
+// processMarkdownToSlidesWithNotes converts markdown content to SlideData with speaker notes
+func processMarkdownToSlidesWithNotes(markdown, filePath string, cfg *entities.Config) PresentationData {
+	// Split markdown by slide separator (---)
+	rawSlides := strings.Split(markdown, "\n---\n")
+
+	themeNameLocal := "default"
+	if cfg != nil && cfg.Theme.Name != "" {
+		themeNameLocal = cfg.Theme.Name
+	}
+
+	var slides []SlideData
+	slideIndex := 1
+
+	for i, rawSlide := range rawSlides {
+		slideContent := strings.TrimSpace(rawSlide)
+		if slideContent == "" {
+			continue
+		}
+
+		// Extract speaker notes before processing
+		speakerNotes := extractSpeakerNotes(slideContent)
+
+		// Remove speaker notes from content before converting to HTML
+		cleanContent := removeSpeakerNotes(slideContent)
+
+		// Convert markdown to HTML
+		htmlContent := basicMarkdownToHTML(cleanContent)
+
+		// Determine slide class
+		slideClass := determineSlideClass(cleanContent, i)
+
+		slides = append(slides, SlideData{
+			Index:        slideIndex,
+			HTMLContent:  htmlContent,
+			SpeakerNotes: speakerNotes,
+			SlideClass:   slideClass,
+		})
+		slideIndex++
+	}
+
+	return PresentationData{
+		Slides:     slides,
+		TotalCount: len(slides),
+		FilePath:   filePath,
+		ThemeName:  themeNameLocal,
+	}
+}
+
+// WebSocket upgrader with security settings
+var wsUpgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		// Allow connections from localhost only for security
+		origin := r.Header.Get("Origin")
+		return strings.HasPrefix(origin, "http://localhost") ||
+			strings.HasPrefix(origin, "http://127.0.0.1")
+	},
+}
+
+// createWebSocketHandler creates a WebSocket handler for slide synchronization
+func createWebSocketHandler(hub *SlideHub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		conn, err := wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("[ERROR] WebSocket upgrade failed: %v", err)
+			return
+		}
+
+		hub.register <- conn
+
+		// Send current slide state to newly connected client
+		initialMsg := WebSocketMessage{
+			Type:       "sync",
+			SlideIndex: hub.GetCurrentSlide(),
+			Source:     "server",
+		}
+		if err := conn.WriteJSON(initialMsg); err != nil {
+			log.Printf("[ERROR] Failed to send initial state: %v", err)
+		}
+
+		// Handle incoming messages
+		go func() {
+			defer func() {
+				hub.unregister <- conn
+			}()
+
+			for {
+				var msg WebSocketMessage
+				if err := conn.ReadJSON(&msg); err != nil {
+					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+						log.Printf("[ERROR] WebSocket read error: %v", err)
+					}
+					break
+				}
+
+				// Update client type if announced
+				if msg.Type == "presenter_ready" || msg.Type == "audience_ready" {
+					hub.SetClientType(conn, msg.Source)
+				}
+
+				// Broadcast slide changes to all clients
+				if msg.Type == "slide_change" {
+					hub.broadcast <- msg
+				}
+			}
+		}()
+	}
+}
+
+// createPresenterHandler creates the handler for serving the presenter view
+func createPresenterHandler(presentationData PresentationData, mainServerPort int) http.HandlerFunc {
+	presenterHTML := generatePresenterHTML(presentationData, mainServerPort)
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(presenterHTML)); err != nil {
+			log.Printf("[ERROR] Failed to write presenter response: %v", err)
+		}
+	}
+}
+
+// createSlidesDataHandler creates the handler for serving slide data as JSON
+func createSlidesDataHandler(presentationData PresentationData) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(presentationData); err != nil {
+			log.Printf("[ERROR] Failed to encode slides data: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+	}
+}
+
+// generatePresenterHTML creates the HTML for the presenter view
+func generatePresenterHTML(data PresentationData, mainServerPort int) string {
+	// Serialize slides data for JavaScript
+	slidesJSON, err := json.Marshal(data.Slides)
+	if err != nil {
+		log.Printf("[ERROR] Failed to marshal slides data: %v", err)
+		slidesJSON = []byte("[]")
+	}
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presenter View - SLICLI</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .presenter-container {
+            display: grid;
+            grid-template-rows: auto 1fr auto auto;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #16213e;
+            padding: 10px 20px;
+            border-radius: 8px;
+        }
+
+        .timer {
+            font-size: 1.8rem;
+            font-weight: bold;
+            font-family: 'Monaco', 'Menlo', monospace;
+            color: #4ecca3;
+        }
+
+        .slide-counter {
+            font-size: 1.4rem;
+            color: #7f8c8d;
+        }
+
+        .current-time {
+            font-size: 1.2rem;
+            color: #7f8c8d;
+        }
+
+        .slides-area {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 15px;
+            min-height: 0;
+        }
+
+        .current-slide-container, .next-slide-container {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .slide-label {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .slide-preview {
+            flex: 1;
+            background: white;
+            border-radius: 6px;
+            overflow: auto;
+            padding: 20px;
+            color: #333;
+        }
+
+        .slide-preview.next { opacity: 0.85; }
+        .slide-preview h1 { font-size: 1.5rem; margin: 0 0 0.5rem 0; }
+        .slide-preview h2 { font-size: 1.2rem; margin: 0 0 0.5rem 0; }
+        .slide-preview h3 { font-size: 1rem; margin: 0 0 0.5rem 0; }
+        .slide-preview p { font-size: 0.9rem; margin: 0.5rem 0; }
+        .slide-preview li { font-size: 0.9rem; margin: 0.25rem 0; }
+        .slide-preview code { font-size: 0.8rem; }
+        .slide-preview pre { font-size: 0.75rem; overflow-x: auto; }
+
+        .notes-area {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 15px;
+            overflow: auto;
+            max-height: 200px;
+        }
+
+        .notes-area h3 {
+            margin: 0 0 10px 0;
+            color: #4ecca3;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .notes-content {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #ddd;
+            white-space: pre-wrap;
+        }
+
+        .notes-content:empty::after {
+            content: "No speaker notes for this slide.";
+            color: #666;
+            font-style: italic;
+        }
+
+        .controls-area {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            padding: 15px;
+            background: #16213e;
+            border-radius: 8px;
+        }
+
+        .control-btn {
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .control-btn.nav {
+            background: #4ecca3;
+            color: #1a1a2e;
+        }
+
+        .control-btn.nav:hover {
+            background: #45b393;
+            transform: translateY(-2px);
+        }
+
+        .control-btn.nav:disabled {
+            background: #3a3a5a;
+            color: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .control-btn.end {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .control-btn.end:hover { background: #c0392b; }
+
+        .control-btn.timer-control {
+            background: #3498db;
+            color: white;
+        }
+
+        .control-btn.timer-control:hover { background: #2980b9; }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%%;
+            background: #e74c3c;
+        }
+
+        .status-dot.connected { background: #4ecca3; }
+
+        .shortcuts-hint {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            font-size: 0.75rem;
+            color: #666;
+        }
+
+        .shortcuts-hint kbd {
+            background: #2a2a4a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 0 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="presenter-container">
+        <div class="header-bar">
+            <div class="timer" id="timer">00:00:00</div>
+            <div class="slide-counter">
+                Slide <span id="current-slide-num">1</span> / <span id="total-slides">%d</span>
+            </div>
+            <div class="connection-status">
+                <span class="status-dot" id="status-dot"></span>
+                <span id="connection-text">Connecting...</span>
+            </div>
+            <div class="current-time" id="current-time"></div>
+        </div>
+
+        <div class="slides-area">
+            <div class="current-slide-container">
+                <div class="slide-label">Current Slide</div>
+                <div class="slide-preview current" id="current-slide-content"></div>
+            </div>
+            <div class="next-slide-container">
+                <div class="slide-label">Next Slide</div>
+                <div class="slide-preview next" id="next-slide-content"></div>
+            </div>
+        </div>
+
+        <div class="notes-area">
+            <h3>Speaker Notes</h3>
+            <div class="notes-content" id="speaker-notes"></div>
+        </div>
+
+        <div class="controls-area">
+            <button class="control-btn timer-control" id="timer-btn" onclick="toggleTimer()">Start Timer</button>
+            <button class="control-btn nav" id="prev-btn" onclick="previousSlide()">Previous</button>
+            <button class="control-btn nav" id="next-btn" onclick="nextSlide()">Next</button>
+            <button class="control-btn end" onclick="endPresentation()">End Presentation</button>
+        </div>
+    </div>
+
+    <div class="shortcuts-hint">
+        <kbd>Left</kbd> Previous | <kbd>Right</kbd> Next | <kbd>Space</kbd> Next | <kbd>T</kbd> Timer | <kbd>R</kbd> Reset
+    </div>
+
+    <script>
+        const slides = %s;
+        const totalSlides = slides.length;
+        let currentSlide = 1;
+        let timerRunning = false;
+        let timerStartTime = null;
+        let timerElapsed = 0;
+        let timerInterval = null;
+        let ws = null;
+        const mainServerPort = %d;
+        const wsUrl = 'ws://localhost:' + mainServerPort + '/ws';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateSlideDisplay();
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            connectWebSocket();
+        });
+
+        function connectWebSocket() {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                document.getElementById('status-dot').classList.add('connected');
+                document.getElementById('connection-text').textContent = 'Connected';
+                ws.send(JSON.stringify({
+                    type: 'presenter_ready',
+                    slideIndex: currentSlide,
+                    source: 'presenter'
+                }));
+            };
+
+            ws.onmessage = function(event) {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'slide_change' && msg.source !== 'presenter') {
+                    currentSlide = msg.slideIndex;
+                    updateSlideDisplay();
+                } else if (msg.type === 'sync') {
+                    currentSlide = msg.slideIndex;
+                    updateSlideDisplay();
+                }
+            };
+
+            ws.onclose = function() {
+                document.getElementById('status-dot').classList.remove('connected');
+                document.getElementById('connection-text').textContent = 'Disconnected';
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        function broadcastSlideChange() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'slide_change',
+                    slideIndex: currentSlide,
+                    source: 'presenter'
+                }));
+            }
+        }
+
+        function updateSlideDisplay() {
+            const currentSlideData = slides[currentSlide - 1];
+            const nextSlideData = slides[currentSlide] || null;
+
+            document.getElementById('current-slide-content').innerHTML = currentSlideData ? currentSlideData.htmlContent : '';
+
+            if (nextSlideData) {
+                document.getElementById('next-slide-content').innerHTML = nextSlideData.htmlContent;
+            } else {
+                document.getElementById('next-slide-content').innerHTML = '<div style="color: #666; text-align: center; padding: 50px;">End of presentation</div>';
+            }
+
+            document.getElementById('speaker-notes').textContent = currentSlideData ? currentSlideData.speakerNotes : '';
+            document.getElementById('current-slide-num').textContent = currentSlide;
+            document.getElementById('total-slides').textContent = totalSlides;
+            document.getElementById('prev-btn').disabled = currentSlide <= 1;
+            document.getElementById('next-btn').disabled = currentSlide >= totalSlides;
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                currentSlide++;
+                updateSlideDisplay();
+                broadcastSlideChange();
+            }
+        }
+
+        function previousSlide() {
+            if (currentSlide > 1) {
+                currentSlide--;
+                updateSlideDisplay();
+                broadcastSlideChange();
+            }
+        }
+
+        function goToSlide(n) {
+            if (n >= 1 && n <= totalSlides) {
+                currentSlide = n;
+                updateSlideDisplay();
+                broadcastSlideChange();
+            }
+        }
+
+        function toggleTimer() {
+            if (timerRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        }
+
+        function startTimer() {
+            timerRunning = true;
+            timerStartTime = Date.now() - timerElapsed;
+            document.getElementById('timer-btn').textContent = 'Pause Timer';
+            timerInterval = setInterval(function() {
+                timerElapsed = Date.now() - timerStartTime;
+                updateTimerDisplay();
+            }, 100);
+        }
+
+        function pauseTimer() {
+            timerRunning = false;
+            document.getElementById('timer-btn').textContent = 'Resume Timer';
+            if (timerInterval) clearInterval(timerInterval);
+        }
+
+        function resetTimer() {
+            timerRunning = false;
+            timerElapsed = 0;
+            timerStartTime = null;
+            document.getElementById('timer-btn').textContent = 'Start Timer';
+            if (timerInterval) clearInterval(timerInterval);
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const totalSeconds = Math.floor(timerElapsed / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds %% 3600) / 60);
+            const seconds = totalSeconds %% 60;
+            document.getElementById('timer').textContent =
+                String(hours).padStart(2, '0') + ':' +
+                String(minutes).padStart(2, '0') + ':' +
+                String(seconds).padStart(2, '0');
+        }
+
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent =
+                now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function endPresentation() {
+            if (confirm('End the presentation?')) {
+                window.close();
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case 'ArrowRight':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    previousSlide();
+                    break;
+                case 't':
+                case 'T':
+                    toggleTimer();
+                    break;
+                case 'r':
+                case 'R':
+                    resetTimer();
+                    break;
+                case 'Home':
+                    goToSlide(1);
+                    break;
+                case 'End':
+                    goToSlide(totalSlides);
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>`, data.TotalCount, string(slidesJSON), mainServerPort)
+}
+
+// generateAudienceHTMLWithSync creates the HTML for the audience view with WebSocket sync
+func generateAudienceHTMLWithSync(slidesHTML, filePath string, cfg *entities.Config, wsPort int, overrides ThemeOverrides) string {
+	themeNameLocal := "default"
+	if cfg != nil && cfg.Theme.Name != "" {
+		themeNameLocal = cfg.Theme.Name
+	}
+
+	pluginAssets := fmt.Sprintf(`
+    <script src="%s"></script>
+    <script src="%s"></script>
+    <script src="%s"></script>
+    <link rel="stylesheet" href="%s">`, MermaidCDN, PrismCoreCDN, PrismAutoloaderCDN, PrismThemeCDN)
+
+	// Generate theme override CSS if any overrides are set
+	overrideCSS := ""
+	if overrides.HasOverrides() {
+		overrideCSS = fmt.Sprintf(`
+        /* Theme overrides from CLI flags */
+        %s`, overrides.ToCSS())
+	}
+
+	htmlTemplate := `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLICLI Presentation</title>
+    <style>{OVERRIDE_CSS}
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%%;
+            height: 100%%;
+            overflow: hidden;
+        }
+        .slide {
+            display: none !important;
+        }
+        .slide:first-child {
+            display: flex !important;
+        }
+        .sync-indicator {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%%;
+            background: #e74c3c;
+        }
+        .sync-dot.connected {
+            background: #4ecca3;
+        }
+    </style>
+    <link rel="stylesheet" href="/themes/{THEME_NAME}/style.css">
+    {PLUGIN_ASSETS}
+</head>
+<body class="theme-{THEME_NAME} presentation">
+    <div class="sync-indicator">
+        <span class="sync-dot" id="sync-dot"></span>
+        <span id="sync-status">Connecting...</span>
+    </div>
+    <div class="slides-container">
+        {SLIDES_HTML}
+    </div>
+    <div class="navigation">
+        <button onclick="previousSlide()">Previous</button>
+        <span class="slide-counter">
+            <span id="current-slide">1</span> / <span id="total-slides">{SLIDE_COUNT}</span>
+        </span>
+        <button onclick="nextSlide()">Next</button>
+    </div>
+    <div class="presentation-info">
+        <strong>File:</strong> {FILE_PATH}
+        <strong>Theme:</strong> {THEME_NAME}
+    </div>
+    <script>
+        let currentSlide = 1;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        let ws = null;
+        const wsPort = {WS_PORT};
+
+        function showSlide(n) {
+            slides.forEach(slide => {
+                slide.style.setProperty('display', 'none', 'important');
+            });
+            currentSlide = n;
+            if (currentSlide > totalSlides) currentSlide = 1;
+            if (currentSlide < 1) currentSlide = totalSlides;
+            const activeSlide = slides[currentSlide - 1];
+            activeSlide.style.setProperty('display', 'flex', 'important');
+            document.getElementById('current-slide').textContent = currentSlide;
+            document.getElementById('total-slides').textContent = totalSlides;
+        }
+
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+            broadcastSlideChange();
+        }
+
+        function previousSlide() {
+            showSlide(currentSlide - 1);
+            broadcastSlideChange();
+        }
+
+        function broadcastSlideChange() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'slide_change',
+                    slideIndex: currentSlide,
+                    source: 'audience'
+                }));
+            }
+        }
+
+        function connectWebSocket() {
+            if (wsPort === 0) return;
+            ws = new WebSocket('ws://localhost:' + wsPort + '/ws');
+
+            ws.onopen = function() {
+                document.getElementById('sync-dot').classList.add('connected');
+                document.getElementById('sync-status').textContent = 'Synced';
+                ws.send(JSON.stringify({
+                    type: 'audience_ready',
+                    slideIndex: currentSlide,
+                    source: 'audience'
+                }));
+            };
+
+            ws.onmessage = function(event) {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'slide_change' && msg.source !== 'audience') {
+                    currentSlide = msg.slideIndex;
+                    showSlide(currentSlide);
+                } else if (msg.type === 'sync') {
+                    currentSlide = msg.slideIndex;
+                    showSlide(currentSlide);
+                }
+            };
+
+            ws.onclose = function() {
+                document.getElementById('sync-dot').classList.remove('connected');
+                document.getElementById('sync-status').textContent = 'Disconnected';
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextSlide();
+            if (e.key === 'ArrowLeft') previousSlide();
+        });
+
+        showSlide(1);
+        connectWebSocket();
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            if (window.Prism) Prism.highlightAll();
+
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({
+                    startOnLoad: false,
+                    theme: 'dark',
+                    securityLevel: 'strict'
+                });
+
+                const mermaidElements = document.querySelectorAll('.mermaid');
+                for (let i = 0; i < mermaidElements.length; i++) {
+                    const element = mermaidElements[i];
+                    let graphDefinition = element.getAttribute('data-original') || element.textContent || '';
+                    if (graphDefinition.includes('#mermaid-')) continue;
+
+                    graphDefinition = graphDefinition.trim()
+                        .replace(/&gt;/g, '>')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&amp;/g, '&');
+
+                    try {
+                        const { svg } = await mermaid.render('mermaid-' + i, graphDefinition);
+                        element.innerHTML = svg;
+                    } catch (e) {
+                        console.error('Mermaid error:', e);
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>`
+
+	slideCount := len(strings.Split(slidesHTML, `<div class="slide"`)) - 1
+
+	html := strings.ReplaceAll(htmlTemplate, "{THEME_NAME}", themeNameLocal)
+	html = strings.ReplaceAll(html, "{PLUGIN_ASSETS}", pluginAssets)
+	html = strings.ReplaceAll(html, "{SLIDES_HTML}", slidesHTML)
+	html = strings.ReplaceAll(html, "{FILE_PATH}", filePath)
+	html = strings.ReplaceAll(html, "{SLIDE_COUNT}", fmt.Sprintf("%d", slideCount))
+	html = strings.ReplaceAll(html, "{WS_PORT}", fmt.Sprintf("%d", wsPort))
+	html = strings.ReplaceAll(html, "{OVERRIDE_CSS}", overrideCSS)
+	return html
+}
+
+// createPresenterHTTPServer creates and configures the presenter HTTP server
+func createPresenterHTTPServer(cfg *entities.Config, presentationData PresentationData, hub *SlideHub, mainServerPort int) *http.Server {
+	mux := http.NewServeMux()
+
+	// Presenter view
+	mux.HandleFunc("/", createPresenterHandler(presentationData, mainServerPort))
+	mux.HandleFunc("/presenter", createPresenterHandler(presentationData, mainServerPort))
+
+	// Slides data API
+	mux.HandleFunc("/api/slides", createSlidesDataHandler(presentationData))
+
+	// WebSocket for synchronization
+	mux.HandleFunc("/ws", createWebSocketHandler(hub))
+
+	// Serve theme assets (same as main server)
+	mux.HandleFunc("/themes/", createThemeAssetsHandler())
+
+	return &http.Server{
+		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, presenterPort),
+		Handler:      securityMiddlewareForPresenter(mux),
+		ReadTimeout:  cfg.Server.GetReadTimeout(),
+		WriteTimeout: cfg.Server.GetWriteTimeout(),
+		IdleTimeout:  60 * time.Second,
+	}
+}
+
+// securityMiddlewareForPresenter adds security headers for presenter mode
+// with WebSocket support
+func securityMiddlewareForPresenter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		// Allow WebSocket connections
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; "+
+				"script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "+
+				"style-src 'self' 'unsafe-inline' https://unpkg.com; "+
+				"img-src 'self' data: https:; "+
+				"font-src 'self' data:; "+
+				"connect-src 'self' ws://localhost:* wss://localhost:*; "+
+				"frame-ancestors 'none'")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // getDefaultCSS returns basic CSS for presentations
