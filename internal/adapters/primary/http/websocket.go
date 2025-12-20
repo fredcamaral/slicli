@@ -12,6 +12,7 @@ import (
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/fredcamaral/slicli/internal/domain/ports"
+	"github.com/fredcamaral/slicli/internal/infrastructure/logging"
 )
 
 const (
@@ -75,7 +76,7 @@ type WebSocketClient struct {
 	send    chan ports.UpdateEvent
 	manager *ConnectionManager
 	mode    ClientMode
-	logger  *HTTPLogger
+	logger  *logging.Logger
 }
 
 // ClientMessage represents a message received from the client

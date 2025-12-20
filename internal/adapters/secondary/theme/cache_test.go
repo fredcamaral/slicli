@@ -258,3 +258,76 @@ func TestMemoryCache_MinimalSize(t *testing.T) {
 	assert.Equal(t, 1, stats.Size)
 	assert.Equal(t, 1, stats.MaxSize)
 }
+
+func TestMemoryCache_MissTracking(t *testing.T) {
+	t.Run("tracks misses for non-existent keys", func(t *testing.T) {
+		cache := NewMemoryCache(10, 1*time.Hour)
+
+		// Initial stats should have 0 misses
+		stats := cache.Stats()
+		assert.Equal(t, int64(0), stats.Misses)
+
+		// Miss for non-existent key
+		_, found := cache.Get("nonexistent1")
+		assert.False(t, found)
+
+		stats = cache.Stats()
+		assert.Equal(t, int64(1), stats.Misses)
+
+		// Another miss
+		_, found = cache.Get("nonexistent2")
+		assert.False(t, found)
+
+		stats = cache.Stats()
+		assert.Equal(t, int64(2), stats.Misses)
+	})
+
+	t.Run("tracks misses for expired entries", func(t *testing.T) {
+		cache := NewMemoryCache(10, 50*time.Millisecond)
+
+		// Set a theme that will expire
+		cache.Set("expiring", createTestTheme("expiring"))
+
+		// Should be a hit while not expired
+		_, found := cache.Get("expiring")
+		assert.True(t, found)
+
+		stats := cache.Stats()
+		assert.Equal(t, int64(0), stats.Misses)
+		assert.Equal(t, int64(1), stats.Hits)
+
+		// Wait for expiration
+		time.Sleep(60 * time.Millisecond)
+
+		// Should be a miss now (expired entry)
+		_, found = cache.Get("expiring")
+		assert.False(t, found)
+
+		stats = cache.Stats()
+		assert.Equal(t, int64(1), stats.Misses)
+	})
+
+	t.Run("hit rate calculation is accurate", func(t *testing.T) {
+		cache := NewMemoryCache(10, 1*time.Hour)
+
+		// Add a theme
+		cache.Set("test", createTestTheme("test"))
+
+		// 3 hits
+		cache.Get("test")
+		cache.Get("test")
+		cache.Get("test")
+
+		// 2 misses
+		cache.Get("nonexistent1")
+		cache.Get("nonexistent2")
+
+		stats := cache.Stats()
+		assert.Equal(t, int64(3), stats.Hits)
+		assert.Equal(t, int64(2), stats.Misses)
+
+		// Verify hit rate can be calculated: hits / (hits + misses) = 3/5 = 0.6
+		totalRequests := stats.Hits + stats.Misses
+		assert.Equal(t, int64(5), totalRequests)
+	})
+}

@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"sync"
 	"time"
@@ -288,10 +289,16 @@ func (e *ConcurrentExecutor) ClearExpiredCache() {
 	})
 }
 
-// generateCacheKey generates a cache key for plugin execution
+// generateCacheKey generates a cache key for plugin execution using SHA256 hashing.
+// This avoids cache key collisions that could occur with simple string concatenation.
 func (e *ConcurrentExecutor) generateCacheKey(pluginName string, input pluginapi.PluginInput) string {
-	// Simple hash of plugin name and input content
-	return fmt.Sprintf("%s:%s:%s", pluginName, input.Language, input.Content)
+	h := sha256.New()
+	h.Write([]byte(pluginName))
+	h.Write([]byte{0}) // null separator to avoid collision between "a:b" and "a" + ":b"
+	h.Write([]byte(input.Language))
+	h.Write([]byte{0})
+	h.Write([]byte(input.Content))
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 // OptimizeForContent analyzes content and suggests optimal execution strategy

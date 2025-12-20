@@ -77,7 +77,7 @@ func NewImageRendererWithBrowser(browserConfig BrowserConfig) (*ImageRenderer, e
 func (r *ImageRenderer) Render(ctx context.Context, presentation *entities.Presentation, options *ExportOptions) (*ExportResult, error) {
 	// Validate required fields
 	if r.htmlRenderer == nil {
-		return nil, errors.New("Image renderer not properly initialized: htmlRenderer is nil")
+		return nil, errors.New("image renderer not properly initialized: htmlRenderer is nil")
 	}
 	if presentation == nil {
 		return nil, errors.New("presentation cannot be nil")

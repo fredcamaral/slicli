@@ -88,7 +88,7 @@ type PresentationSync interface {
 // ExportService defines the interface for presentation export functionality
 type ExportService interface {
 	// Export exports a presentation to the specified format
-	Export(ctx context.Context, presentation *entities.Presentation, options interface{}) (interface{}, error)
+	Export(ctx context.Context, presentation *entities.Presentation, options *entities.ExportOptions) (*entities.ExportResult, error)
 
 	// GetSupportedFormats returns a list of supported export formats
 	GetSupportedFormats() []string

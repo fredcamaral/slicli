@@ -3,6 +3,7 @@ package entities
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -154,6 +155,13 @@ type ThemeConfig struct {
 	CustomPath string `toml:"custom_path"`
 }
 
+// ApplyDefaults applies default values to empty fields
+func (t *ThemeConfig) ApplyDefaults() {
+	if t.Name == "" {
+		t.Name = "default"
+	}
+}
+
 // Validate validates theme configuration
 func (t ThemeConfig) Validate() error {
 	if t.Name == "" {
@@ -268,12 +276,18 @@ func (p PluginsConfig) Validate() error {
 
 // GetMarketplaceURL returns the marketplace URL with environment override
 // Note: All marketplace URLs are validated to use HTTPS at config validation time
-// and when creating the marketplace client. This function does not re-validate
-// as that could cause silent failures; instead, validation happens at boundaries.
+// and when creating the marketplace client. Environment variables are also validated
+// here to prevent insecure URLs from bypassing config validation.
 func (p PluginsConfig) GetMarketplaceURL() string {
 	// Environment variable takes highest precedence
 	if envURL := os.Getenv("SLICLI_MARKETPLACE_URL"); envURL != "" {
-		return envURL
+		// Validate HTTPS for security
+		if !strings.HasPrefix(envURL, "https://") {
+			log.Printf("[WARN] SLICLI_MARKETPLACE_URL must use HTTPS, ignoring insecure URL: %s", envURL)
+			// Fall through to configured URL or default
+		} else {
+			return envURL
+		}
 	}
 
 	// Use configured URL if available

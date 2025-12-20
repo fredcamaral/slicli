@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
+	"github.com/fredcamaral/slicli/internal/domain/ports"
 	pluginapi "github.com/fredcamaral/slicli/pkg/plugin"
 )
 
@@ -262,3 +263,6 @@ func (r *InMemoryRegistry) SetPluginStatus(name string, status entities.PluginSt
 
 	return nil
 }
+
+// Compile-time interface verification
+var _ ports.PluginRegistry = (*InMemoryRegistry)(nil)

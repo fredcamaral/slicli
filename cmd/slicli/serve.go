@@ -29,6 +29,7 @@ import (
 	"github.com/fredcamaral/slicli/internal/adapters/secondary/config"
 	"github.com/fredcamaral/slicli/internal/adapters/secondary/sanitizer"
 	"github.com/fredcamaral/slicli/internal/domain/entities"
+	"github.com/fredcamaral/slicli/internal/infrastructure/logging"
 )
 
 // External CDN URLs for third-party libraries.
@@ -101,7 +102,7 @@ func (h *SlideHub) Run() {
 			h.mu.Lock()
 			if _, ok := h.clients[conn]; ok {
 				delete(h.clients, conn)
-				conn.Close()
+				_ = conn.Close() // Error ignored: connection already being unregistered
 			}
 			h.mu.Unlock()
 
@@ -112,7 +113,7 @@ func (h *SlideHub) Run() {
 			}
 			for conn := range h.clients {
 				if err := conn.WriteJSON(msg); err != nil {
-					conn.Close()
+					_ = conn.Close() // Error ignored: connection failed and being removed
 					delete(h.clients, conn)
 				}
 			}
@@ -294,69 +295,12 @@ func collectThemeOverrides() ThemeOverrides {
 	}
 }
 
-// Logger provides structured logging for the serve command
-type Logger struct {
-	verbose bool
-	level   entities.LogLevel
-}
-
-// shouldLog checks if the message should be logged based on level
-func (l *Logger) shouldLog(msgLevel entities.LogLevel) bool {
-	levelMap := map[entities.LogLevel]int{
-		entities.LogLevelDebug: 0,
-		entities.LogLevelInfo:  1,
-		entities.LogLevelWarn:  2,
-		entities.LogLevelError: 3,
-	}
-
-	currentLevel := levelMap[l.level]
-	messageLevel := levelMap[msgLevel]
-
-	return messageLevel >= currentLevel
-}
-
-// Info logs informational messages
-func (l *Logger) Info(msg string, args ...interface{}) {
-	if l.shouldLog(entities.LogLevelInfo) && l.verbose {
-		log.Printf("[INFO] "+msg, args...)
-	}
-}
-
-// Warn logs warning messages
-func (l *Logger) Warn(msg string, args ...interface{}) {
-	if l.shouldLog(entities.LogLevelWarn) {
-		log.Printf("[WARN] "+msg, args...)
-	}
-}
-
-// Error logs error messages (always shown if error level)
-func (l *Logger) Error(msg string, args ...interface{}) {
-	if l.shouldLog(entities.LogLevelError) {
-		log.Printf("[ERROR] "+msg, args...)
-	}
-}
-
-// Success logs success messages
-func (l *Logger) Success(msg string, args ...interface{}) {
-	if l.shouldLog(entities.LogLevelInfo) && l.verbose {
-		log.Printf("[SUCCESS] "+msg, args...)
-	}
-}
-
-// newLogger creates a new logger instance (kept for potential future use)
-// func newLogger(verbose bool) *Logger {
-// 	return &Logger{
-// 		verbose: verbose,
-// 		level:   entities.LogLevelInfo, // Default level
-// 	}
-// }
-
-// newLoggerWithLevel creates a new logger instance with specific level
-func newLoggerWithLevel(verbose bool, level entities.LogLevel) *Logger {
-	return &Logger{
-		verbose: verbose,
-		level:   level,
-	}
+// newServeLogger creates a logger for the serve command using the shared logging package.
+func newServeLogger(verbose bool, level entities.LogLevel) *logging.Logger {
+	return logging.NewLogger("serve",
+		logging.WithVerbose(verbose),
+		logging.WithLevel(level),
+	)
 }
 
 // serveCmd represents the serve command
@@ -438,7 +382,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		verbose = finalConfig.Logging.Verbose
 	}
 
-	logger := newLoggerWithLevel(verbose, finalConfig.Logging.GetLevel())
+	logger := newServeLogger(verbose, finalConfig.Logging.GetLevel())
 	printStartupInfo(logger, presentationPath, finalConfig)
 
 	// Read markdown content
@@ -520,7 +464,7 @@ func loadAndValidateConfig(cmd *cobra.Command, presentationPath string) (*entiti
 }
 
 // printStartupInfo prints startup information if verbose mode is enabled
-func printStartupInfo(logger *Logger, presentationPath string, config *entities.Config) {
+func printStartupInfo(logger *logging.Logger, presentationPath string, config *entities.Config) {
 	logger.Info("Starting server for presentation: %s", presentationPath)
 	logger.Info("Attempting to start server at: http://%s:%d", config.Server.Host, config.Server.Port)
 	if config.Browser.AutoOpen {
@@ -528,50 +472,6 @@ func printStartupInfo(logger *Logger, presentationPath string, config *entities.
 	}
 	if config.Theme.Name != "" {
 		logger.Info("Using theme: %s", config.Theme.Name)
-	}
-}
-
-// loadPresentationContent validates and loads the presentation file content
-func loadPresentationContent(presentationPath string, config *entities.Config, overrides ThemeOverrides) (string, error) {
-	// Validate and read the presentation file
-	fileInfo, err := os.Stat(presentationPath)
-	if err != nil {
-		return "", fmt.Errorf("accessing presentation file: %w", err)
-	}
-	if !fileInfo.Mode().IsRegular() {
-		return "", fmt.Errorf("presentation path is not a regular file: %s", presentationPath)
-	}
-
-	// Read the validated presentation file
-	markdownContent, err := os.ReadFile(presentationPath) // #nosec G304 - path validated above
-	if err != nil {
-		return "", fmt.Errorf("reading presentation file: %w", err)
-	}
-
-	// Process markdown into HTML slides
-	return processMarkdownToSlides(string(markdownContent), presentationPath, config, overrides), nil
-}
-
-// createHTTPServer creates and configures the HTTP server with handlers
-func createHTTPServer(config *entities.Config, htmlContent string) *http.Server {
-	mux := http.NewServeMux()
-
-	// Serve the presentation
-	mux.HandleFunc("/", createPresentationHandler(htmlContent))
-
-	// Serve static assets
-	mux.HandleFunc("/assets/", createAssetsHandler())
-
-	// Serve theme assets
-	mux.HandleFunc("/themes/", createThemeAssetsHandler())
-
-	// Create HTTP server using configuration values with security middleware
-	return &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", config.Server.Host, config.Server.Port),
-		Handler:      securityMiddleware(mux),
-		ReadTimeout:  config.Server.GetReadTimeout(),
-		WriteTimeout: config.Server.GetWriteTimeout(),
-		IdleTimeout:  60 * time.Second,
 	}
 }
 
@@ -901,7 +801,7 @@ func setContentType(w http.ResponseWriter, path string) {
 }
 
 // startAndManageServer starts the server and manages its lifecycle
-func startAndManageServer(server *http.Server, config *entities.Config, logger *Logger) error {
+func startAndManageServer(server *http.Server, config *entities.Config, logger *logging.Logger) error {
 	// Create channels for server status
 	serverStarted := make(chan struct{})
 	serverErr := make(chan error, 1)
@@ -952,7 +852,7 @@ func startServerAsync(server *http.Server, config *entities.Config, serverStarte
 }
 
 // waitForServerStart waits for the server to start and handles post-startup tasks
-func waitForServerStart(serverStarted chan struct{}, serverErr chan error, config *entities.Config, logger *Logger) error {
+func waitForServerStart(serverStarted chan struct{}, serverErr chan error, config *entities.Config, logger *logging.Logger) error {
 	select {
 	case err := <-serverErr:
 		return err
@@ -971,7 +871,7 @@ func waitForServerStart(serverStarted chan struct{}, serverErr chan error, confi
 }
 
 // openBrowserIfConfigured opens the browser if auto-open is enabled
-func openBrowserIfConfigured(config *entities.Config, logger *Logger) {
+func openBrowserIfConfigured(config *entities.Config, logger *logging.Logger) {
 	browserLauncher := browser.NewLauncher()
 	url := fmt.Sprintf("http://%s:%d", config.Server.Host, config.Server.Port)
 
@@ -981,7 +881,7 @@ func openBrowserIfConfigured(config *entities.Config, logger *Logger) {
 }
 
 // handleServerShutdown handles graceful server shutdown on signals
-func handleServerShutdown(server *http.Server, serverErr chan error, config *entities.Config, logger *Logger) error {
+func handleServerShutdown(server *http.Server, serverErr chan error, config *entities.Config, logger *logging.Logger) error {
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -1302,210 +1202,6 @@ func postProcessMermaidDiagrams(html string) string {
 		// Return Mermaid div with data-original attribute
 		return fmt.Sprintf(`<div class="mermaid" data-original="%s">%s</div>`, escapedContent, mermaidContent)
 	})
-}
-
-// markdownProcessor handles the stateful markdown to HTML conversion
-type markdownProcessor struct {
-	html            *strings.Builder
-	inCodeBlock     bool
-	codeLanguage    string
-	mermaidContent  strings.Builder // Store original Mermaid content
-	inTable         bool
-	isFirstTableRow bool
-}
-
-// processLine processes a single line of markdown
-func (p *markdownProcessor) processLine(line string) {
-	// Handle code block boundaries
-	if strings.HasPrefix(line, "```") {
-		p.handleCodeBlockBoundary(line)
-		return
-	}
-
-	// Handle content inside code blocks
-	if p.inCodeBlock {
-		p.handleCodeBlockContent(line)
-		return
-	}
-
-	// Handle regular markdown content
-	p.handleRegularContent(line)
-}
-
-// handleCodeBlockBoundary handles the start and end of code blocks
-func (p *markdownProcessor) handleCodeBlockBoundary(line string) {
-	if p.inCodeBlock {
-		// End of code block
-		p.writeCodeBlockClosing()
-		p.inCodeBlock = false
-	} else {
-		// Start of code block
-		p.codeLanguage = strings.TrimPrefix(line, "```")
-		if p.codeLanguage == "" {
-			p.codeLanguage = "text"
-		}
-		p.writeCodeBlockOpening()
-		p.inCodeBlock = true
-	}
-}
-
-// writeCodeBlockOpening writes the opening tags for code blocks
-func (p *markdownProcessor) writeCodeBlockOpening() {
-	if p.codeLanguage == "mermaid" {
-		// For Mermaid, we'll store the content first, then create the div
-		p.html.WriteString(`<div class="mermaid" data-original="">`)
-	} else {
-		_, _ = fmt.Fprintf(p.html, `<pre class="code-block %s"><code>`, p.codeLanguage)
-	}
-}
-
-// writeCodeBlockClosing writes the closing tags for code blocks
-func (p *markdownProcessor) writeCodeBlockClosing() {
-	if p.codeLanguage == "mermaid" {
-		// Get the collected Mermaid content and update the opening div
-		mermaidContent := strings.TrimSpace(p.mermaidContent.String())
-
-		// Escape quotes for HTML attribute
-		escapedContent := strings.ReplaceAll(mermaidContent, `"`, `&quot;`)
-		escapedContent = strings.ReplaceAll(escapedContent, `'`, `&#39;`)
-
-		// Replace the empty data-original with the actual content
-		currentHTML := p.html.String()
-		updatedHTML := strings.Replace(currentHTML, `data-original=""`, `data-original="`+escapedContent+`"`, 1)
-
-		// Reset and write the updated HTML
-		p.html.Reset()
-		p.html.WriteString(updatedHTML)
-
-		// Reset Mermaid content for next diagram
-		p.mermaidContent.Reset()
-
-		p.html.WriteString("</div>\n")
-	} else {
-		p.html.WriteString("</code></pre>\n")
-	}
-}
-
-// handleCodeBlockContent handles content inside code blocks
-func (p *markdownProcessor) handleCodeBlockContent(line string) {
-	if p.codeLanguage == "mermaid" {
-		// For Mermaid, collect content for data attribute but also write as-is
-		p.mermaidContent.WriteString(line + "\n")
-		p.html.WriteString(line + "\n")
-	} else {
-		// For other code blocks, escape HTML entities
-		escaped := strings.ReplaceAll(line, "&", "&amp;")
-		escaped = strings.ReplaceAll(escaped, "<", "&lt;")
-		escaped = strings.ReplaceAll(escaped, ">", "&gt;")
-		p.html.WriteString(escaped + "\n")
-	}
-}
-
-// handleRegularContent handles regular markdown content (headers, paragraphs, lists)
-func (p *markdownProcessor) handleRegularContent(line string) {
-	if line == "" {
-		return
-	}
-
-	// Handle headers (h3, h2, h1 in priority order)
-	if strings.HasPrefix(line, "### ") {
-		content := processInlineMarkdown(strings.TrimPrefix(line, "### "))
-		p.html.WriteString("<h3>" + content + "</h3>\n")
-	} else if strings.HasPrefix(line, "## ") {
-		content := processInlineMarkdown(strings.TrimPrefix(line, "## "))
-		p.html.WriteString("<h2>" + content + "</h2>\n")
-	} else if strings.HasPrefix(line, "# ") {
-		content := processInlineMarkdown(strings.TrimPrefix(line, "# "))
-		p.html.WriteString("<h1>" + content + "</h1>\n")
-	} else if strings.HasPrefix(line, "- ") {
-		// Handle list items
-		content := processInlineMarkdown(strings.TrimPrefix(line, "- "))
-		p.html.WriteString("<li>" + content + "</li>\n")
-	} else if strings.Contains(line, "|") && strings.Count(line, "|") >= 2 {
-		// Handle table rows
-		p.handleTableRow(line)
-	} else {
-		// End table if we were in one
-		if p.inTable {
-			p.html.WriteString("</table>\n")
-			p.inTable = false
-		}
-		// Regular paragraph
-		content := processInlineMarkdown(line)
-		p.html.WriteString("<p>" + content + "</p>\n")
-	}
-}
-
-// handleTableRow handles markdown table rows
-func (p *markdownProcessor) handleTableRow(line string) {
-	// Skip separator rows (rows with only |, -, and spaces)
-	if regexp.MustCompile(`^[\|\-\s]*$`).MatchString(line) {
-		return
-	}
-
-	// Start table if not already in one
-	if !p.inTable {
-		p.html.WriteString("<table>\n")
-		p.inTable = true
-		p.isFirstTableRow = true
-	}
-
-	// Split by | and clean up cells
-	cells := strings.Split(line, "|")
-
-	// Remove empty cells at start and end
-	if len(cells) > 0 && strings.TrimSpace(cells[0]) == "" {
-		cells = cells[1:]
-	}
-	if len(cells) > 0 && strings.TrimSpace(cells[len(cells)-1]) == "" {
-		cells = cells[:len(cells)-1]
-	}
-
-	// Start row
-	p.html.WriteString("<tr>")
-
-	// Process each cell
-	for _, cell := range cells {
-		cell = strings.TrimSpace(cell)
-		content := processInlineMarkdown(cell)
-
-		if p.isFirstTableRow {
-			p.html.WriteString("<th>" + content + "</th>")
-		} else {
-			p.html.WriteString("<td>" + content + "</td>")
-		}
-	}
-
-	// End row
-	p.html.WriteString("</tr>\n")
-
-	// No longer first row
-	p.isFirstTableRow = false
-}
-
-// processInlineMarkdown handles inline markdown formatting
-func processInlineMarkdown(text string) string {
-	// Process inline code first to avoid conflicts
-	text = regexp.MustCompile("`([^`]+)`").ReplaceAllString(text, "<code>$1</code>")
-
-	// Process bold text (**text**)
-	text = regexp.MustCompile(`\*\*([^*]+)\*\*`).ReplaceAllString(text, "<strong>$1</strong>")
-
-	// Process italic text (*text*) - but not list markers
-	// Use negative lookbehind/lookahead would be ideal, but Go doesn't support it
-	// So we'll use a more specific pattern
-	text = regexp.MustCompile(`(\s|^)\*([^*\s][^*]*[^*\s])\*(\s|$)`).ReplaceAllString(text, "$1<em>$2</em>$3")
-
-	// Process strikethrough (~~text~~)
-	text = regexp.MustCompile(`~~([^~]+)~~`).ReplaceAllString(text, "<s>$1</s>")
-
-	return text
-}
-
-// processInlinePattern applies a regex pattern to convert inline markdown
-func processInlinePattern(text, pattern, replacement string) string {
-	re := regexp.MustCompile(pattern)
-	return re.ReplaceAllString(text, replacement)
 }
 
 // generatePresentationHTML creates the complete HTML page with plugin assets

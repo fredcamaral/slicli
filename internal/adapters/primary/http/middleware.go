@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fredcamaral/slicli/internal/infrastructure/logging"
 )
 
 const (
@@ -52,7 +54,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 // createLoggingMiddleware creates logging middleware with a specific logger
-func createLoggingMiddleware(next http.Handler, logger *HTTPLogger) http.Handler {
+func createLoggingMiddleware(next http.Handler, logger *logging.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -207,44 +209,6 @@ func (rl *rateLimiter) isAllowed(ip string, limit int, window time.Duration) boo
 	return true
 }
 
-// globalRateLimiter is a package-level rate limiter for backward compatibility.
-// It is lazily initialized on first use to avoid starting a goroutine if not needed.
-// Use StopGlobalRateLimiter() during application shutdown to clean up.
-// Prefer using createRateLimitMiddleware with an injected rate limiter for proper cleanup.
-var (
-	globalRateLimiter     *rateLimiter
-	globalRateLimiterOnce sync.Once
-	globalRateLimiterMu   sync.Mutex
-)
-
-// getGlobalRateLimiter returns the global rate limiter, initializing it on first use.
-func getGlobalRateLimiter() *rateLimiter {
-	globalRateLimiterOnce.Do(func() {
-		globalRateLimiter = newRateLimiter()
-	})
-	return globalRateLimiter
-}
-
-// StopGlobalRateLimiter stops the global rate limiter's cleanup goroutine.
-// This should be called during application shutdown to prevent goroutine leaks.
-// It is safe to call this function even if the global rate limiter was never initialized.
-func StopGlobalRateLimiter() {
-	globalRateLimiterMu.Lock()
-	defer globalRateLimiterMu.Unlock()
-	if globalRateLimiter != nil {
-		globalRateLimiter.Stop()
-		globalRateLimiter = nil
-	}
-	// Reset the Once so a new rate limiter can be created if needed (for testing)
-	globalRateLimiterOnce = sync.Once{}
-}
-
-// rateLimitMiddleware implements rate limiting per IP using global rate limiter.
-// Deprecated: Use createRateLimitMiddleware for proper resource cleanup.
-func rateLimitMiddleware(next http.Handler) http.Handler {
-	return createRateLimitMiddleware(next, getGlobalRateLimiter())
-}
-
 // createRateLimitMiddleware creates rate limiting middleware with an injected rate limiter
 func createRateLimitMiddleware(next http.Handler, rl *rateLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -302,7 +266,7 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 }
 
 // createRecoveryMiddleware creates recovery middleware with a specific logger
-func createRecoveryMiddleware(next http.Handler, logger *HTTPLogger) http.Handler {
+func createRecoveryMiddleware(next http.Handler, logger *logging.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {

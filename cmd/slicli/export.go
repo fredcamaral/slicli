@@ -14,6 +14,7 @@ import (
 	"github.com/fredcamaral/slicli/internal/adapters/secondary/export"
 	"github.com/fredcamaral/slicli/internal/adapters/secondary/parser"
 	"github.com/fredcamaral/slicli/internal/domain/entities"
+	"github.com/fredcamaral/slicli/internal/infrastructure/logging"
 )
 
 var (
@@ -71,7 +72,10 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create logger
-	logger := newLoggerWithLevel(verbose, finalConfig.Logging.GetLevel())
+	logger := logging.NewLogger("export",
+		logging.WithVerbose(verbose),
+		logging.WithLevel(finalConfig.Logging.GetLevel()),
+	)
 
 	// Validate input file
 	if err := validateInputFile(inputPath); err != nil {
@@ -98,8 +102,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 	outputPath := determineOutputPath(inputPath, exportFormat, exportOutput)
 
 	// Create export options
-	options := &export.ExportOptions{
-		Format:       export.ExportFormat(exportFormat),
+	options := &entities.ExportOptions{
+		Format:       entities.ExportFormat(exportFormat),
 		OutputPath:   outputPath,
 		Theme:        getExportTheme(finalConfig),
 		Quality:      exportQuality,
@@ -197,14 +201,14 @@ func determineOutputPath(inputPath, format, explicitOutput string) string {
 	baseName := strings.TrimSuffix(filepath.Base(inputPath), filepath.Ext(inputPath))
 	dir := filepath.Dir(inputPath)
 
-	switch export.ExportFormat(format) {
-	case export.FormatPDF:
+	switch entities.ExportFormat(format) {
+	case entities.ExportFormatPDF:
 		return filepath.Join(dir, baseName+".pdf")
-	case export.FormatHTML:
+	case entities.ExportFormatHTML:
 		return filepath.Join(dir, baseName+".html")
-	case export.FormatImages:
+	case entities.ExportFormatImages:
 		return filepath.Join(dir, baseName+"_images")
-	case export.FormatMarkdown:
+	case entities.ExportFormatMarkdown:
 		return filepath.Join(dir, baseName+"_exported.md")
 	default:
 		return filepath.Join(dir, baseName+"_export")
@@ -288,7 +292,7 @@ func handleExportError(err error) error {
 }
 
 // displayExportResult displays the export result to the user
-func displayExportResult(result *export.ExportResult, logger *Logger) {
+func displayExportResult(result *entities.ExportResult, logger *logging.Logger) {
 	if !result.Success {
 		fmt.Printf("Export failed: %s\n", result.Error)
 		for _, warning := range result.Warnings {

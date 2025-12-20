@@ -123,18 +123,18 @@ func (p *SyntaxHighlightPlugin) Execute(ctx context.Context, input plugin.Plugin
 func (p *SyntaxHighlightPlugin) Cleanup() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	// Clear configuration
 	p.config = make(map[string]interface{})
-	
-	// Clear formatter reference 
+
+	// Clear formatter reference
 	p.formatter = nil
-	
+
 	// Clear global lexer cache
 	lexerMu.Lock()
 	lexerCache = make(map[string]chroma.Lexer)
 	lexerMu.Unlock()
-	
+
 	return nil
 }
 

@@ -268,8 +268,8 @@ func TestExportService_RealChrome_EndToEndExport(t *testing.T) {
 	t.Run("PDF Export", func(t *testing.T) {
 		outputPath := filepath.Join(tempDir, "test-presentation.pdf")
 
-		options := &ExportOptions{
-			Format:      FormatPDF,
+		options := &entities.ExportOptions{
+			Format:      entities.ExportFormatPDF,
 			OutputPath:  outputPath,
 			Quality:     "high",
 			PageSize:    "A4",
@@ -282,7 +282,7 @@ func TestExportService_RealChrome_EndToEndExport(t *testing.T) {
 		result, err := service.Export(ctx, presentation, options)
 		require.NoError(t, err)
 		assert.True(t, result.Success)
-		assert.Equal(t, string(FormatPDF), result.Format)
+		assert.Equal(t, string(entities.ExportFormatPDF), result.Format)
 		assert.NotZero(t, result.FileSize)
 		assert.NotZero(t, result.PageCount)
 
@@ -301,8 +301,8 @@ func TestExportService_RealChrome_EndToEndExport(t *testing.T) {
 	t.Run("Images Export", func(t *testing.T) {
 		outputPath := filepath.Join(tempDir, "test-presentation-images.zip")
 
-		options := &ExportOptions{
-			Format:     FormatImages,
+		options := &entities.ExportOptions{
+			Format:     entities.ExportFormatImages,
 			OutputPath: outputPath,
 			Quality:    "high",
 		}
@@ -313,7 +313,7 @@ func TestExportService_RealChrome_EndToEndExport(t *testing.T) {
 		result, err := service.Export(ctx, presentation, options)
 		require.NoError(t, err)
 		assert.True(t, result.Success)
-		assert.Equal(t, string(FormatImages), result.Format)
+		assert.Equal(t, string(entities.ExportFormatImages), result.Format)
 		assert.NotZero(t, result.FileSize)
 
 		// Verify ZIP file exists and has content
@@ -347,8 +347,8 @@ func TestExportService_RealChrome_ErrorHandling(t *testing.T) {
 			Build()
 
 		outputPath := filepath.Join(tempDir, "error-test.pdf")
-		options := &ExportOptions{
-			Format:     FormatPDF,
+		options := &entities.ExportOptions{
+			Format:     entities.ExportFormatPDF,
 			OutputPath: outputPath,
 		}
 
@@ -388,8 +388,8 @@ func TestExportService_RealChrome_ErrorHandling(t *testing.T) {
 			Build()
 
 		outputPath := filepath.Join(tempDir, "timeout-test.pdf")
-		options := &ExportOptions{
-			Format:     FormatPDF,
+		options := &entities.ExportOptions{
+			Format:     entities.ExportFormatPDF,
 			OutputPath: outputPath,
 		}
 

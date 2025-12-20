@@ -15,6 +15,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/fredcamaral/slicli/internal/domain/entities"
+	"github.com/fredcamaral/slicli/internal/domain/ports"
 	pluginapi "github.com/fredcamaral/slicli/pkg/plugin"
 )
 
@@ -293,3 +294,6 @@ func isValidVersion(version string) bool {
 	}
 	return true
 }
+
+// Compile-time interface verification
+var _ ports.PluginLoader = (*GoPluginLoader)(nil)

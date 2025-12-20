@@ -104,8 +104,8 @@ func TestService_Export(t *testing.T) {
 		mockRenderer.On("Render", mock.Anything, presentation, mock.Anything).Return(expectedResult, nil)
 		testService.RegisterRenderer(FormatHTML, mockRenderer)
 
-		options := &ExportOptions{
-			Format:     FormatHTML,
+		options := &entities.ExportOptions{
+			Format:     entities.ExportFormatHTML,
 			OutputPath: "/tmp/test.html",
 		}
 
@@ -113,7 +113,7 @@ func TestService_Export(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.True(t, result.Success)
-		assert.Equal(t, string(FormatHTML), result.Format)
+		assert.Equal(t, string(entities.ExportFormatHTML), result.Format)
 		assert.NotEmpty(t, result.Duration)
 		assert.NotZero(t, result.GeneratedAt)
 
@@ -124,8 +124,8 @@ func TestService_Export(t *testing.T) {
 		testService, err := NewService("")
 		require.NoError(t, err)
 
-		options := &ExportOptions{
-			Format:     ExportFormat("unsupported"),
+		options := &entities.ExportOptions{
+			Format:     entities.ExportFormat("unsupported"),
 			OutputPath: "/tmp/test.unsupported",
 		}
 
@@ -146,8 +146,8 @@ func TestService_Export(t *testing.T) {
 		mockRenderer.On("Render", mock.Anything, presentation, mock.Anything).Return(nil, renderError)
 		testService.RegisterRenderer(FormatHTML, mockRenderer)
 
-		options := &ExportOptions{
-			Format:     FormatHTML,
+		options := &entities.ExportOptions{
+			Format:     entities.ExportFormatHTML,
 			OutputPath: "/tmp/test.html",
 		}
 
@@ -168,8 +168,8 @@ func TestService_Export(t *testing.T) {
 		mockRenderer := new(MockRenderer)
 		testService.RegisterRenderer(FormatHTML, mockRenderer)
 
-		options := &ExportOptions{
-			Format:     FormatHTML,
+		options := &entities.ExportOptions{
+			Format:     entities.ExportFormatHTML,
 			OutputPath: "/invalid/nonexistent/deeply/nested/path/test.html",
 		}
 

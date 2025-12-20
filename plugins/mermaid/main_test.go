@@ -168,24 +168,24 @@ func TestMermaidPlugin_Assets(t *testing.T) {
 
 func TestMermaidPlugin_Cleanup(t *testing.T) {
 	p := &MermaidPlugin{}
-	
+
 	// Initialize with some config
 	config := map[string]interface{}{
-		"theme": "dark",
-		"scale": 1.5,
+		"theme":      "dark",
+		"scale":      1.5,
 		"background": "white",
 	}
 	err := p.Init(config)
 	assert.NoError(t, err)
-	
+
 	// Verify initialization worked
 	assert.NotNil(t, p.config)
 	assert.Len(t, p.config, 3)
-	
+
 	// Cleanup
 	err = p.Cleanup()
 	assert.NoError(t, err)
-	
+
 	// Verify cleanup
 	assert.Empty(t, p.config, "Config should be cleared after cleanup")
 }

@@ -15,7 +15,7 @@ func TestConfigMerger_Merge(t *testing.T) {
 		result := merger.Merge()
 		assert.NotNil(t, result)
 		assert.Equal(t, "localhost", result.Server.Host)
-		assert.Equal(t, 1000, result.Server.Port)
+		assert.Equal(t, 8080, result.Server.Port)
 		assert.Equal(t, "default", result.Theme.Name)
 	})
 

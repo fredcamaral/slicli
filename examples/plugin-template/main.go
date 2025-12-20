@@ -249,3 +249,9 @@ func (p *ExamplePlugin) generateCSS(style string) string {
 // Plugin is the exported plugin instance.
 // This MUST be named "Plugin" for the loader to find it.
 var Plugin plugin.Plugin = &ExamplePlugin{}
+
+// main exists to satisfy Go's requirement for a main package.
+// Plugins should be built with: go build -buildmode=plugin -o example.so
+func main() {
+	fmt.Println("This is a plugin template. Build with: go build -buildmode=plugin -o example.so")
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,6 +16,7 @@ import (
 	"github.com/fredcamaral/slicli/internal/adapters/secondary/optimization"
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/fredcamaral/slicli/internal/domain/ports"
+	"github.com/fredcamaral/slicli/internal/infrastructure/logging"
 )
 
 const (
@@ -45,84 +45,23 @@ const (
 	corsMaxAge = 300
 )
 
-// HTTPLogger provides structured logging for the HTTP server
-type HTTPLogger struct {
-	component string
-	verbose   bool
-	level     entities.LogLevel
+// NewHTTPLogger creates a new HTTP logger instance using the shared logging package.
+// HTTP server loggers always log Info messages (don't require verbose=true).
+func NewHTTPLogger(component string, verbose bool) *logging.Logger {
+	return logging.NewLogger(component,
+		logging.WithVerbose(verbose),
+		logging.WithAlwaysLogInfo(true),
+	)
 }
 
-// NewHTTPLogger creates a new HTTP logger instance
-func NewHTTPLogger(component string, verbose bool) *HTTPLogger {
-	return &HTTPLogger{
-		component: component,
-		verbose:   verbose,
-		level:     entities.LogLevelInfo, // Default level
-	}
-}
-
-// NewHTTPLoggerWithLevel creates a new HTTP logger instance with specific level
-func NewHTTPLoggerWithLevel(component string, verbose bool, level entities.LogLevel) *HTTPLogger {
-	return &HTTPLogger{
-		component: component,
-		verbose:   verbose,
-		level:     level,
-	}
-}
-
-// shouldLog checks if the message should be logged based on level
-func (l *HTTPLogger) shouldLog(msgLevel entities.LogLevel) bool {
-	levelMap := map[entities.LogLevel]int{
-		entities.LogLevelDebug: 0,
-		entities.LogLevelInfo:  1,
-		entities.LogLevelWarn:  2,
-		entities.LogLevelError: 3,
-	}
-
-	currentLevel := levelMap[l.level]
-	messageLevel := levelMap[msgLevel]
-
-	return messageLevel >= currentLevel
-}
-
-// Debug logs debug messages (only if debug level is enabled)
-func (l *HTTPLogger) Debug(msg string, args ...interface{}) {
-	if l.shouldLog(entities.LogLevelDebug) {
-		log.Printf("[DEBUG] [%s] "+msg, append([]interface{}{l.component}, args...)...)
-	}
-}
-
-// Info logs informational messages (only if info level or higher is enabled)
-func (l *HTTPLogger) Info(msg string, args ...interface{}) {
-	if l.shouldLog(entities.LogLevelInfo) {
-		log.Printf("[INFO] [%s] "+msg, append([]interface{}{l.component}, args...)...)
-	}
-}
-
-// Warn logs warning messages (only if warn level or higher is enabled)
-func (l *HTTPLogger) Warn(msg string, args ...interface{}) {
-	if l.shouldLog(entities.LogLevelWarn) {
-		log.Printf("[WARN] [%s] "+msg, append([]interface{}{l.component}, args...)...)
-	}
-}
-
-// Error logs error messages (always logged)
-func (l *HTTPLogger) Error(msg string, args ...interface{}) {
-	if l.shouldLog(entities.LogLevelError) {
-		log.Printf("[ERROR] [%s] "+msg, append([]interface{}{l.component}, args...)...)
-	}
-}
-
-// Success logs success messages (only if info level or higher is enabled)
-func (l *HTTPLogger) Success(msg string, args ...interface{}) {
-	if l.shouldLog(entities.LogLevelInfo) {
-		log.Printf("[SUCCESS] [%s] "+msg, append([]interface{}{l.component}, args...)...)
-	}
-}
-
-// SetLevel updates the logging level
-func (l *HTTPLogger) SetLevel(level entities.LogLevel) {
-	l.level = level
+// NewHTTPLoggerWithLevel creates a new HTTP logger instance with specific level.
+// HTTP server loggers always log Info messages (don't require verbose=true).
+func NewHTTPLoggerWithLevel(component string, verbose bool, level entities.LogLevel) *logging.Logger {
+	return logging.NewLogger(component,
+		logging.WithVerbose(verbose),
+		logging.WithLevel(level),
+		logging.WithAlwaysLogInfo(true),
+	)
 }
 
 // Server implements the HTTPServer interface
@@ -137,7 +76,7 @@ type Server struct {
 	exportService   ports.ExportService
 	optimizationSvc *optimization.OptimizationService
 	config          *entities.ServerConfig // Store server configuration
-	logger          *HTTPLogger            // Structured logger
+	logger          *logging.Logger        // Structured logger
 	mu              sync.RWMutex
 	running         bool
 }

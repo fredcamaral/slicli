@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fredcamaral/slicli/internal/adapters/secondary/export"
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/microcosm-cc/bluemonday"
 )
@@ -525,8 +524,8 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	outputPath := filepath.Join(exportService.GetTempDir(), filename)
 
 	// Prepare export options
-	options := &export.ExportOptions{
-		Format:          export.ExportFormat(req.Format),
+	options := &entities.ExportOptions{
+		Format:          entities.ExportFormat(req.Format),
 		OutputPath:      outputPath,
 		Theme:           req.Theme,
 		IncludeNotes:    req.IncludeNotes,

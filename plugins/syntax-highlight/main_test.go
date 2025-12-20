@@ -225,28 +225,28 @@ func TestSyntaxHighlightPlugin_Assets(t *testing.T) {
 
 func TestSyntaxHighlightPlugin_Cleanup(t *testing.T) {
 	p := &SyntaxHighlightPlugin{}
-	
+
 	// Initialize with some config
 	config := map[string]interface{}{
-		"style": "github",
+		"style":        "github",
 		"line_numbers": true,
 	}
 	err := p.Init(config)
 	assert.NoError(t, err)
-	
+
 	// Verify initialization worked
 	assert.NotNil(t, p.config)
 	assert.NotNil(t, p.formatter)
 	assert.Len(t, p.config, 2)
-	
+
 	// Populate lexer cache by getting a lexer
 	_ = getLexer("go")
 	assert.Greater(t, len(lexerCache), 0, "Lexer cache should have entries")
-	
+
 	// Cleanup
 	err = p.Cleanup()
 	assert.NoError(t, err)
-	
+
 	// Verify cleanup
 	assert.Empty(t, p.config, "Config should be cleared after cleanup")
 	assert.Nil(t, p.formatter, "Formatter should be nil after cleanup")

@@ -5,10 +5,62 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 )
+
+// dangerousGoPatterns defines regex patterns for dangerous Go code
+// These patterns are designed to catch various forms of dangerous operations
+var dangerousGoPatterns = []struct {
+	pattern *regexp.Regexp
+	name    string
+}{
+	// Dangerous imports
+	{regexp.MustCompile(`"os/exec"`), "os/exec import"},
+	{regexp.MustCompile(`"syscall"`), "syscall import"},
+	{regexp.MustCompile(`"unsafe"`), "unsafe import"},
+	{regexp.MustCompile(`"plugin"`), "plugin import"},
+	{regexp.MustCompile(`"net/http"`), "net/http import"},
+	{regexp.MustCompile(`"net"`), "net import"},
+	{regexp.MustCompile(`"reflect"`), "reflect import"},
+	{regexp.MustCompile(`"runtime/debug"`), "runtime/debug import"},
+
+	// CGO
+	{regexp.MustCompile(`import\s+"C"`), "CGO import"},
+	{regexp.MustCompile(`import\s+[^"]*"C"`), "CGO import"},
+
+	// File operations
+	{regexp.MustCompile(`os\.Remove\s*\(`), "os.Remove()"},
+	{regexp.MustCompile(`os\.RemoveAll\s*\(`), "os.RemoveAll()"},
+	{regexp.MustCompile(`os\.Create\s*\(`), "os.Create()"},
+	{regexp.MustCompile(`os\.OpenFile\s*\(`), "os.OpenFile()"},
+	{regexp.MustCompile(`os\.Mkdir\s*\(`), "os.Mkdir()"},
+	{regexp.MustCompile(`os\.MkdirAll\s*\(`), "os.MkdirAll()"},
+	{regexp.MustCompile(`os\.Rename\s*\(`), "os.Rename()"},
+	{regexp.MustCompile(`os\.Chmod\s*\(`), "os.Chmod()"},
+	{regexp.MustCompile(`os\.Chown\s*\(`), "os.Chown()"},
+	{regexp.MustCompile(`os\.WriteFile\s*\(`), "os.WriteFile()"},
+	{regexp.MustCompile(`ioutil\.WriteFile\s*\(`), "ioutil.WriteFile()"},
+
+	// Environment and process manipulation
+	{regexp.MustCompile(`os\.Setenv\s*\(`), "os.Setenv()"},
+	{regexp.MustCompile(`os\.Unsetenv\s*\(`), "os.Unsetenv()"},
+	{regexp.MustCompile(`os\.Exit\s*\(`), "os.Exit()"},
+
+	// Dangerous paths
+	{regexp.MustCompile(`"/etc/`), "/etc/ access"},
+	{regexp.MustCompile(`"~/`), "home directory access"},
+	{regexp.MustCompile(`"/dev/`), "/dev/ access"},
+	{regexp.MustCompile(`"/proc/`), "/proc/ access"},
+	{regexp.MustCompile(`"/sys/`), "/sys/ access"},
+
+	// Runtime manipulation
+	{regexp.MustCompile(`runtime\.GOMAXPROCS\s*\(`), "runtime.GOMAXPROCS()"},
+	{regexp.MustCompile(`runtime\.SetFinalizer\s*\(`), "runtime.SetFinalizer()"},
+	{regexp.MustCompile(`runtime\.GC\s*\(`), "runtime.GC()"},
+}
 
 // GoExecutor executes Go code
 type GoExecutor struct{}
@@ -38,6 +90,14 @@ func (e *GoExecutor) GetDefaultConfig() entities.ExecutionConfig {
 
 // Prepare sets up Go code execution
 func (e *GoExecutor) Prepare(ctx context.Context, code string, config entities.ExecutionConfig) (*exec.Cmd, func(), error) {
+	// Validate code for dangerous patterns BEFORE any execution setup
+	// This check is performed unless TrustedMode is enabled
+	if !config.TrustedMode {
+		if err := e.validateGoCode(code); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	// Create temporary file for Go code
 	tmpFile, err := os.CreateTemp("", "slicli-go-*.go")
 	if err != nil {
@@ -168,4 +228,38 @@ func (e *GoExecutor) indentCode(code string) string {
 	}
 
 	return strings.Join(indentedLines, "\n")
+}
+
+// validateGoCode checks Go code for dangerous patterns and returns an error if any are found.
+// This function BLOCKS execution of dangerous code rather than just warning about it.
+func (e *GoExecutor) validateGoCode(code string) error {
+	var blockedPatterns []string
+
+	// Check against all dangerous patterns
+	for _, dp := range dangerousGoPatterns {
+		if dp.pattern.MatchString(code) {
+			blockedPatterns = append(blockedPatterns, dp.name)
+		}
+	}
+
+	// If any dangerous patterns were found, return an error
+	if len(blockedPatterns) > 0 {
+		return entities.NewBlockedCommandError(blockedPatterns)
+	}
+
+	return nil
+}
+
+// IsDangerousGoCode checks if Go code contains dangerous patterns.
+// This is a helper function for external validation needs.
+func IsDangerousGoCode(code string) (bool, []string) {
+	var blockedPatterns []string
+
+	for _, dp := range dangerousGoPatterns {
+		if dp.pattern.MatchString(code) {
+			blockedPatterns = append(blockedPatterns, dp.name)
+		}
+	}
+
+	return len(blockedPatterns) > 0, blockedPatterns
 }

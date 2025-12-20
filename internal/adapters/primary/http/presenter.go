@@ -10,6 +10,7 @@ import (
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
 	"github.com/fredcamaral/slicli/internal/domain/ports"
+	"github.com/fredcamaral/slicli/internal/infrastructure/logging"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
@@ -18,7 +19,7 @@ import (
 type PresenterHandler struct {
 	syncService ports.PresentationSync
 	upgrader    websocket.Upgrader
-	logger      *HTTPLogger
+	logger      *logging.Logger
 	config      *entities.ServerConfig
 }
 

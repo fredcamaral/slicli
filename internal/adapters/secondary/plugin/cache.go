@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fredcamaral/slicli/internal/domain/entities"
+	"github.com/fredcamaral/slicli/internal/domain/ports"
 	pluginapi "github.com/fredcamaral/slicli/pkg/plugin"
 )
 
@@ -288,3 +289,6 @@ func (c *MemoryCache) Stop() {
 func (c *MemoryCache) cleanupExpired() {
 	c.Cleanup()
 }
+
+// Compile-time interface verification
+var _ ports.PluginCache = (*MemoryCache)(nil)

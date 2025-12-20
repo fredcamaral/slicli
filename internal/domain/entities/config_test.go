@@ -488,4 +488,46 @@ func TestPluginsConfig_GetMarketplaceURL(t *testing.T) {
 		url := config.GetMarketplaceURL()
 		assert.Equal(t, "https://env.marketplace.com", url)
 	})
+
+	t.Run("rejects insecure HTTP environment variable", func(t *testing.T) {
+		// Set environment variable to insecure HTTP URL
+		originalEnv := os.Getenv("SLICLI_MARKETPLACE_URL")
+		require.NoError(t, os.Setenv("SLICLI_MARKETPLACE_URL", "http://insecure.marketplace.com"))
+		defer func() {
+			if originalEnv == "" {
+				_ = os.Unsetenv("SLICLI_MARKETPLACE_URL")
+			} else {
+				_ = os.Setenv("SLICLI_MARKETPLACE_URL", originalEnv)
+			}
+		}()
+
+		config := PluginsConfig{
+			MarketplaceURL: "https://config.marketplace.com",
+		}
+
+		// Should fall back to config URL since env var is insecure
+		url := config.GetMarketplaceURL()
+		assert.Equal(t, "https://config.marketplace.com", url)
+	})
+
+	t.Run("falls back to default when env var is insecure and config empty", func(t *testing.T) {
+		// Set environment variable to insecure HTTP URL
+		originalEnv := os.Getenv("SLICLI_MARKETPLACE_URL")
+		require.NoError(t, os.Setenv("SLICLI_MARKETPLACE_URL", "http://insecure.marketplace.com"))
+		defer func() {
+			if originalEnv == "" {
+				_ = os.Unsetenv("SLICLI_MARKETPLACE_URL")
+			} else {
+				_ = os.Setenv("SLICLI_MARKETPLACE_URL", originalEnv)
+			}
+		}()
+
+		config := PluginsConfig{
+			MarketplaceURL: "",
+		}
+
+		// Should fall back to default URL since env var is insecure and config is empty
+		url := config.GetMarketplaceURL()
+		assert.Equal(t, "https://marketplace.slicli.dev", url)
+	})
 }

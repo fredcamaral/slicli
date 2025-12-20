@@ -210,3 +210,6 @@ func (c *ConfigurableMatcher) MatchWithConfig(content string, language string, f
 
 	return matches
 }
+
+// Compile-time interface verification
+var _ ports.PluginMatcher = (*RuleMatcher)(nil)

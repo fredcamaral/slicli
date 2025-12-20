@@ -226,3 +226,6 @@ func (w *PollingWatcher) calculateChecksum(path string) (string, error) {
 
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
+
+// Compile-time interface verification
+var _ ports.FileWatcher = (*PollingWatcher)(nil)

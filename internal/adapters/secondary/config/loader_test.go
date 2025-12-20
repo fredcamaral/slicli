@@ -34,7 +34,7 @@ func TestTOMLLoader_LoadGlobal(t *testing.T) {
 
 		// Verify default values
 		assert.Equal(t, "localhost", config.Server.Host)
-		assert.Equal(t, 1000, config.Server.Port)
+		assert.Equal(t, 8080, config.Server.Port)
 		assert.Equal(t, "default", config.Theme.Name)
 		assert.True(t, config.Browser.AutoOpen)
 		assert.Equal(t, 200, config.Watcher.IntervalMs)
@@ -255,7 +255,7 @@ func TestTOMLLoader_CreateDefaults(t *testing.T) {
 		config, err := loader.loadConfig(configPath)
 		require.NoError(t, err)
 		assert.Equal(t, "localhost", config.Server.Host)
-		assert.Equal(t, 1000, config.Server.Port)
+		assert.Equal(t, 8080, config.Server.Port)
 	})
 
 	t.Run("fails with permission error", func(t *testing.T) {

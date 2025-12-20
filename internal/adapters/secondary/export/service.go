@@ -55,6 +55,45 @@ type ExportResult struct {
 	Metadata    map[string]interface{} `json:"metadata,omitempty"` // Enhanced metadata including metrics
 }
 
+// optionsFromEntities converts entities.ExportOptions to internal ExportOptions
+func optionsFromEntities(opts *entities.ExportOptions) *ExportOptions {
+	if opts == nil {
+		return nil
+	}
+	return &ExportOptions{
+		Format:          ExportFormat(opts.Format),
+		OutputPath:      opts.OutputPath,
+		Theme:           opts.Theme,
+		IncludeNotes:    opts.IncludeNotes,
+		IncludeMetadata: opts.IncludeMetadata,
+		Quality:         opts.Quality,
+		PageSize:        opts.PageSize,
+		Orientation:     opts.Orientation,
+		Compression:     opts.Compression,
+		Metadata:        opts.Metadata,
+	}
+}
+
+// resultToEntities converts internal ExportResult to entities.ExportResult
+func resultToEntities(result *ExportResult) *entities.ExportResult {
+	if result == nil {
+		return nil
+	}
+	return &entities.ExportResult{
+		Success:     result.Success,
+		Format:      result.Format,
+		OutputPath:  result.OutputPath,
+		FileSize:    result.FileSize,
+		Duration:    result.Duration,
+		PageCount:   result.PageCount,
+		Files:       result.Files,
+		Error:       result.Error,
+		Warnings:    result.Warnings,
+		GeneratedAt: result.GeneratedAt,
+		Metadata:    result.Metadata,
+	}
+}
+
 // ExportErrorType categorizes different types of export errors
 type ExportErrorType string
 
@@ -198,14 +237,6 @@ func (s *Service) setMetrics(id string, m *ExportMetrics) {
 	s.metrics[id] = m
 }
 
-// getMetrics retrieves metrics for an export operation in a thread-safe manner
-func (s *Service) getMetrics(id string) (*ExportMetrics, bool) {
-	s.metricsMu.RLock()
-	defer s.metricsMu.RUnlock()
-	m, ok := s.metrics[id]
-	return m, ok
-}
-
 // deleteMetrics removes metrics for an export operation in a thread-safe manner
 func (s *Service) deleteMetrics(id string) {
 	s.metricsMu.Lock()
@@ -220,8 +251,16 @@ func (s *Service) clearMetrics() {
 	s.metrics = make(map[string]*ExportMetrics)
 }
 
-// Export exports a presentation to the specified format with retry logic and comprehensive error handling
-func (s *Service) Export(ctx context.Context, presentation *entities.Presentation, options *ExportOptions) (*ExportResult, error) {
+// Export exports a presentation to the specified format.
+// This method satisfies the ports.ExportService interface.
+func (s *Service) Export(ctx context.Context, presentation *entities.Presentation, options *entities.ExportOptions) (*entities.ExportResult, error) {
+	internalOptions := optionsFromEntities(options)
+	result, err := s.exportInternal(ctx, presentation, internalOptions)
+	return resultToEntities(result), err
+}
+
+// exportInternal exports a presentation to the specified format with retry logic and comprehensive error handling
+func (s *Service) exportInternal(ctx context.Context, presentation *entities.Presentation, options *ExportOptions) (*ExportResult, error) {
 	// Initialize metrics
 	operationID := fmt.Sprintf("%s-%d", options.Format, time.Now().UnixNano())
 	metrics := &ExportMetrics{

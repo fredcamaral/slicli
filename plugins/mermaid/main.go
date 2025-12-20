@@ -73,7 +73,7 @@ func (p *MermaidPlugin) Execute(ctx context.Context, input plugin.PluginInput) (
 func (p *MermaidPlugin) Cleanup() error {
 	// Clear configuration to free memory
 	p.config = make(map[string]interface{})
-	
+
 	return nil
 }
 

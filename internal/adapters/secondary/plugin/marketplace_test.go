@@ -259,7 +259,7 @@ func TestMarketplaceClient_Integration_Example(t *testing.T) {
 
 	// Example of what the refactored code would enable:
 	/*
-		httpClient := ports.NewRealHTTPClient(ports.HTTPClientConfig{
+		httpClient := httpclient.NewRealHTTPClient(httpclient.Config{
 			Timeout: 30 * time.Second,
 		})
 

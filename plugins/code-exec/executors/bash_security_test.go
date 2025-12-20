@@ -504,7 +504,7 @@ func TestEdgeCases(t *testing.T) {
 		{"symbolic /etc/passwd", "/etc/passwd", true},
 
 		// Comments and strings
-		{"rm in comment", "# rm -rf /", true}, // Still matches pattern, which is safer
+		{"rm in comment", "# rm -rf /", true},        // Still matches pattern, which is safer
 		{"echo rm command", "echo 'rm -rf /'", true}, // Still matches - false positive but safer
 
 		// Unicode and encoding tricks (should not bypass)

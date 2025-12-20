@@ -67,7 +67,7 @@ func (b *PresentationBuilder) WithSlideCount(count int) *PresentationBuilder {
 	for i := 0; i < count; i++ {
 		slide := NewSlideBuilder().
 			WithID(i + 1).
-			WithTitle("Slide " + string(rune(i+1+'0'))).
+			WithTitle("Slide " + strconv.Itoa(i+1)).
 			Build()
 		b.presentation.Slides = append(b.presentation.Slides, slide)
 	}

@@ -13,7 +13,7 @@ func GetDefaultConfig() *entities.Config {
 	config := &entities.Config{
 		Server: entities.ServerConfig{
 			Host:            getEnvOrDefault("SLICLI_HOST", "localhost"),
-			Port:            getEnvIntOrDefault("SLICLI_PORT", 1000),
+			Port:            getEnvIntOrDefault("SLICLI_PORT", 8080),
 			ReadTimeout:     getEnvIntOrDefault("SLICLI_READ_TIMEOUT", 30),
 			WriteTimeout:    getEnvIntOrDefault("SLICLI_WRITE_TIMEOUT", 30),
 			ShutdownTimeout: getEnvIntOrDefault("SLICLI_SHUTDOWN_TIMEOUT", 5),

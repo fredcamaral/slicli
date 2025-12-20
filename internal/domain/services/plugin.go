@@ -746,14 +746,5 @@ func parseTimeout(timeoutStr string) (time.Duration, error) {
 	return 0, fmt.Errorf("invalid timeout format: %s", timeoutStr)
 }
 
-// InMemoryRegistry is an interface for registries that extend the base PluginRegistry.
-type InMemoryRegistry interface {
-	ports.PluginRegistry
-	IncrementTimeout(name string)
-	IncrementPanic(name string)
-	GetLoadedPlugin(name string) (*entities.LoadedPlugin, error)
-	ListLoadedPlugins() []entities.LoadedPlugin
-}
-
 // Ensure PluginService implements ports.PluginService interface.
 var _ ports.PluginService = (*PluginService)(nil)

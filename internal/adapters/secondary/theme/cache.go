@@ -14,6 +14,7 @@ type MemoryCache struct {
 	themes  map[string]*cachedTheme
 	maxSize int
 	ttl     time.Duration
+	misses  int64
 
 	// Cleanup goroutine control
 	done chan struct{}
@@ -44,12 +45,18 @@ func (c *MemoryCache) Get(name string) (*entities.ThemeEngine, bool) {
 	c.mu.RUnlock()
 
 	if !exists {
+		c.mu.Lock()
+		c.misses++
+		c.mu.Unlock()
 		return nil, false
 	}
 
 	// Check expiration (ttl of 0 means no expiration)
 	if c.ttl > 0 && time.Now().After(cached.expiresAt) {
 		c.Remove(name)
+		c.mu.Lock()
+		c.misses++
+		c.mu.Unlock()
 		return nil, false
 	}
 
@@ -126,6 +133,7 @@ func (c *MemoryCache) Stats() entities.CacheStats {
 	stats := entities.CacheStats{
 		Size:    len(c.themes),
 		MaxSize: c.maxSize,
+		Misses:  c.misses,
 	}
 
 	var hits int64
