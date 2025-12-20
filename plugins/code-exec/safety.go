@@ -104,11 +104,12 @@ func setUnixResourceLimits(cmd *exec.Cmd, config entities.ExecutionConfig) error
 	// Build ulimit command prefix
 	var limitCmds []string
 
-	// Only use virtual memory limit on Linux (not supported on macOS)
-	if runtime.GOOS == "linux" {
-		memoryLimitKB := config.MaxMemory / 1024
-		limitCmds = append(limitCmds, fmt.Sprintf("ulimit -v %d", memoryLimitKB)) // Virtual memory
-	}
+	// NOTE: We intentionally do NOT use ulimit -v (virtual memory limit) because:
+	// 1. It limits virtual address space, not actual RAM usage
+	// 2. Modern runtimes (Go, Node.js, JVM) reserve large virtual address spaces
+	// 3. A simple Go "Hello World" needs 1-2GB virtual space despite using few MB of RAM
+	// 4. Proper memory limiting should use cgroups (MemoryLimitedExecutor)
+	// See: https://github.com/golang/go/issues/38673
 
 	limitCmds = append(limitCmds, "ulimit -t 30") // CPU time (30 seconds max)
 
