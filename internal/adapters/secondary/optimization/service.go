@@ -258,25 +258,38 @@ func (s *OptimizationService) optimizePlugins() {
 
 // GetOptimizationStats returns optimization statistics
 func (s *OptimizationService) GetOptimizationStats() map[string]interface{} {
+	// Acquire all read locks to safely read internal state
+	s.gcOptimizer.mu.RLock()
+	gcStats := map[string]interface{}{
+		"last_gc":          s.gcOptimizer.lastGC,
+		"threshold_mb":     s.gcOptimizer.gcThresholdMB,
+		"adaptive_enabled": s.gcOptimizer.adaptiveGC,
+	}
+	s.gcOptimizer.mu.RUnlock()
+
+	s.memoryManager.mu.RLock()
+	memStats := map[string]interface{}{
+		"max_heap_mb":       s.memoryManager.maxHeapMB,
+		"target_gc_percent": s.memoryManager.targetGCPercent,
+		"last_optimization": s.memoryManager.lastOptimization,
+	}
+	s.memoryManager.mu.RUnlock()
+
+	s.cacheManager.mu.RLock()
+	cacheStats := map[string]interface{}{
+		"cleanup_interval": s.cacheManager.cleanupInterval,
+		"last_cleanup":     s.cacheManager.lastCleanup,
+		"cache_count":      len(s.cacheManager.caches),
+	}
+	s.cacheManager.mu.RUnlock()
+
 	return map[string]interface{}{
-		"performance": s.monitor.GetHealthStatus(),
-		"memory":      s.monitor.GetMemoryStats(),
-		"plugins":     s.concurrentExec.GetCacheStats(),
-		"gc_optimizer": map[string]interface{}{
-			"last_gc":          s.gcOptimizer.lastGC,
-			"threshold_mb":     s.gcOptimizer.gcThresholdMB,
-			"adaptive_enabled": s.gcOptimizer.adaptiveGC,
-		},
-		"memory_manager": map[string]interface{}{
-			"max_heap_mb":       s.memoryManager.maxHeapMB,
-			"target_gc_percent": s.memoryManager.targetGCPercent,
-			"last_optimization": s.memoryManager.lastOptimization,
-		},
-		"cache_manager": map[string]interface{}{
-			"cleanup_interval": s.cacheManager.cleanupInterval,
-			"last_cleanup":     s.cacheManager.lastCleanup,
-			"cache_count":      len(s.cacheManager.caches),
-		},
+		"performance":    s.monitor.GetHealthStatus(),
+		"memory":         s.monitor.GetMemoryStats(),
+		"plugins":        s.concurrentExec.GetCacheStats(),
+		"gc_optimizer":   gcStats,
+		"memory_manager": memStats,
+		"cache_manager":  cacheStats,
 	}
 }
 

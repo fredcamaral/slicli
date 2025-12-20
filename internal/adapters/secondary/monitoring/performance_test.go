@@ -258,32 +258,24 @@ func TestPerformanceMonitor_ConcurrentAccess(t *testing.T) {
 
 func TestPerformanceMonitor_MetricCollection(t *testing.T) {
 	monitor := NewPerformanceMonitor()
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
 
-	// Record the time before starting to have a valid comparison baseline
+	// Record the time before update
 	time.Sleep(1 * time.Millisecond) // Ensure some time passes
-	beforeStart := time.Now()
+	beforeUpdate := time.Now()
 
-	monitor.Start(ctx)
-	defer monitor.Stop()
+	// Directly trigger metric update to test the functionality
+	// This avoids racing with the internal ticker goroutine
+	monitor.updateMetrics()
 
-	// Override ticker to collect metrics faster for testing after starting
-	monitor.mu.Lock()
-	if monitor.ticker != nil {
-		monitor.ticker.Stop()
-	}
-	monitor.ticker = time.NewTicker(10 * time.Millisecond)
-	monitor.mu.Unlock()
-	defer monitor.ticker.Stop()
+	afterUpdate := monitor.GetMetrics().LastOperationTime
 
-	// Wait for at least one metric collection cycle
-	time.Sleep(50 * time.Millisecond)
+	// LastOperationTime should have been updated
+	assert.True(t, afterUpdate.After(beforeUpdate), "Metrics should be updated by updateMetrics")
 
-	afterStart := monitor.GetMetrics().LastOperationTime
-
-	// LastOperationTime should have been updated by the collection loop
-	assert.True(t, afterStart.After(beforeStart), "Metrics should be updated by collection loop")
+	// Verify memory metrics are populated (non-zero values after update)
+	metrics := monitor.GetMetrics()
+	assert.Greater(t, metrics.HeapSize, int64(0), "HeapSize should be populated")
+	assert.Greater(t, metrics.GoroutineCount, 0, "GoroutineCount should be populated")
 }
 
 func TestSafeUint64ToInt64(t *testing.T) {

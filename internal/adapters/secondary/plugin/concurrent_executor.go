@@ -262,9 +262,14 @@ func (e *ConcurrentExecutor) GetCacheStats() map[string]interface{} {
 		return true
 	})
 
+	// Read maxConcurrent with lock to avoid race with SetMaxConcurrent
+	e.mu.RLock()
+	maxConcurrent := e.maxConcurrent
+	e.mu.RUnlock()
+
 	return map[string]interface{}{
 		"cache_size":     cacheSize,
-		"max_concurrent": e.maxConcurrent,
+		"max_concurrent": maxConcurrent,
 		"active_jobs":    len(e.GetActiveJobs()),
 	}
 }

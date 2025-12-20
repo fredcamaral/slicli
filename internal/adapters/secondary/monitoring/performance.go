@@ -68,8 +68,9 @@ func (pm *PerformanceMonitor) Start(ctx context.Context) {
 
 	pm.running = true
 	pm.ticker = time.NewTicker(30 * time.Second) // Collect metrics every 30 seconds
+	ticker := pm.ticker                          // Copy reference for goroutine
 
-	go pm.collectMetrics(ctx)
+	go pm.collectMetrics(ctx, ticker)
 }
 
 // Stop stops performance monitoring
@@ -89,14 +90,14 @@ func (pm *PerformanceMonitor) Stop() {
 }
 
 // collectMetrics runs the metric collection loop
-func (pm *PerformanceMonitor) collectMetrics(ctx context.Context) {
+func (pm *PerformanceMonitor) collectMetrics(ctx context.Context, ticker *time.Ticker) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-pm.stopCh:
 			return
-		case <-pm.ticker.C:
+		case <-ticker.C:
 			pm.updateMetrics()
 		}
 	}
