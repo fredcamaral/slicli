@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -13,6 +14,29 @@ import (
 
 	pluginapi "github.com/fredcamaral/slicli/pkg/plugin"
 )
+
+// skipIfCgroupsUnavailable skips the test if cgroups are not available.
+// Cgroups require Linux and typically root/privileged access.
+func skipIfCgroupsUnavailable(t *testing.T) {
+	t.Helper()
+
+	if runtime.GOOS != "linux" {
+		t.Skip("Cgroups only available on Linux")
+	}
+
+	// Check if we can access cgroup filesystem
+	if _, err := os.Stat("/sys/fs/cgroup"); os.IsNotExist(err) {
+		t.Skip("Cgroup filesystem not available")
+	}
+
+	// Check if we can write to cgroups (requires privileges)
+	testPath := "/sys/fs/cgroup/slicli-cgroup-test-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	if err := os.MkdirAll(testPath, 0755); err != nil {
+		t.Skipf("Cannot create cgroups (permission denied): %v", err)
+	}
+	// Clean up test directory
+	_ = os.Remove(testPath)
+}
 
 // MockMemoryTestPlugin simulates a plugin that can consume memory
 type MockMemoryTestPlugin struct {
@@ -183,6 +207,7 @@ func TestMemoryLimitedExecutor_Creation(t *testing.T) {
 }
 
 func TestMemoryLimitedExecutor_BasicExecution(t *testing.T) {
+	skipIfCgroupsUnavailable(t)
 
 	executor, err := NewMemoryLimitedExecutor(5*time.Second, 5, 50*1024*1024) // 50MB limit
 	require.NoError(t, err)
@@ -205,6 +230,7 @@ func TestMemoryLimitedExecutor_BasicExecution(t *testing.T) {
 }
 
 func TestMemoryLimitedExecutor_TimeoutHandling(t *testing.T) {
+	skipIfCgroupsUnavailable(t)
 
 	executor, err := NewMemoryLimitedExecutor(5*time.Second, 5, 50*1024*1024)
 	require.NoError(t, err)
@@ -227,6 +253,7 @@ func TestMemoryLimitedExecutor_TimeoutHandling(t *testing.T) {
 }
 
 func TestMemoryLimitedExecutor_ContextCancellation(t *testing.T) {
+	skipIfCgroupsUnavailable(t)
 
 	executor, err := NewMemoryLimitedExecutor(5*time.Second, 5, 50*1024*1024)
 	require.NoError(t, err)
@@ -257,6 +284,7 @@ func TestMemoryLimitedExecutor_ContextCancellation(t *testing.T) {
 }
 
 func TestMemoryLimitedExecutor_MemoryUsageTracking(t *testing.T) {
+	skipIfCgroupsUnavailable(t)
 
 	executor, err := NewMemoryLimitedExecutor(10*time.Second, 5, 100*1024*1024)
 	require.NoError(t, err)
@@ -284,6 +312,7 @@ func TestMemoryLimitedExecutor_MemoryUsageTracking(t *testing.T) {
 }
 
 func TestMemoryLimitedExecutor_ConcurrentExecution(t *testing.T) {
+	skipIfCgroupsUnavailable(t)
 
 	executor, err := NewMemoryLimitedExecutor(10*time.Second, 3, 200*1024*1024) // 200MB total
 	require.NoError(t, err)

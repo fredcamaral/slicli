@@ -256,7 +256,8 @@ func TestProcessGoCode(t *testing.T) {
 
 			if tt.expectOk {
 				if result.Metadata["status"] != "success" {
-					t.Errorf("Expected success, got status: %v", result.Metadata["status"])
+					t.Errorf("Expected success, got status: %v, error: %v, output: %v, html: %v",
+						result.Metadata["status"], result.Metadata["error"], result.Metadata["output"], result.HTML)
 				}
 			} else {
 				if result.Metadata["status"] == "success" {
