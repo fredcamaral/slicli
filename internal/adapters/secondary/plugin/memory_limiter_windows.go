@@ -424,3 +424,9 @@ func (ml *MemoryLimiter) monitorWindowsJobMemory(ctx context.Context, jobHandle 
 		}
 	}
 }
+
+// setResourceLimits is a no-op on Windows as memory limiting is handled by job objects
+func (ml *MemoryLimiter) setResourceLimits(_ int64) error {
+	// Windows uses job objects for memory limiting, not rlimits
+	return nil
+}

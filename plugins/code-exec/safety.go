@@ -81,11 +81,8 @@ func newLimitedWriter(limit int) *limitedWriter {
 
 // setResourceLimits applies resource limits to the command
 func setResourceLimits(cmd *exec.Cmd, config entities.ExecutionConfig) error {
-	// Set process group for easier cleanup
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{}
-	}
-	cmd.SysProcAttr.Setpgid = true
+	// Set process group for easier cleanup (Unix-specific, no-op on Windows)
+	setProcessGroupUnix(cmd)
 
 	// Platform-specific resource limits
 	switch runtime.GOOS {
@@ -177,11 +174,8 @@ func filterEnvironment(env []string) []string {
 
 // setProcessGroup sets up process group for cleanup
 func setProcessGroup(cmd *exec.Cmd) error {
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{}
-	}
-	cmd.SysProcAttr.Setpgid = true
-	cmd.SysProcAttr.Pgid = 0
+	// Platform-specific implementation in safety_unix.go and safety_windows.go
+	setProcessGroupForCleanup(cmd)
 	return nil
 }
 
@@ -194,9 +188,5 @@ func setupProcessIsolation(cmd *exec.Cmd) {
 	}
 
 	// Unix-like systems use process groups
-	// Ensure SysProcAttr is initialized
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{}
-	}
-	cmd.SysProcAttr.Setpgid = true
+	setProcessGroupUnix(cmd)
 }

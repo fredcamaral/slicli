@@ -141,12 +141,7 @@ func (ml *MemoryLimiter) initializeMacOSLimits() error {
 	return nil
 }
 
-// initializeWindowsJobObjects sets up Windows job objects
-func (ml *MemoryLimiter) initializeWindowsJobObjects() error {
-	// Windows job objects require no global initialization
-	// The actual implementation is in memory_limiter_windows.go (build tag: windows)
-	return nil
-}
+// initializeWindowsJobObjects is defined in memory_limiter_unix.go (non-Windows) and memory_limiter_windows.go (Windows)
 
 // ExecuteWithMemoryLimit executes a plugin with memory limits
 func (ml *MemoryLimiter) ExecuteWithMemoryLimit(ctx context.Context, p pluginapi.Plugin, input pluginapi.PluginInput, memoryLimitBytes int64, timeout time.Duration) (pluginapi.PluginOutput, error) {
@@ -473,12 +468,7 @@ func (ml *MemoryLimiter) setMacOSResourceLimits(memoryBytes int64) error {
 	return ml.setResourceLimits(memoryBytes)
 }
 
-// executeWindowsWithJobObjects executes plugin with Windows job objects
-// The actual implementation is in memory_limiter_windows.go (build tag: windows)
-func (ml *MemoryLimiter) executeWindowsWithJobObjects(ctx context.Context, p pluginapi.Plugin, input pluginapi.PluginInput, memoryLimitBytes int64, timeout time.Duration) (pluginapi.PluginOutput, error) {
-	// This is a stub for non-Windows platforms
-	return pluginapi.PluginOutput{}, errors.New("windows job objects only available on Windows")
-}
+// executeWindowsWithJobObjects is defined in memory_limiter_unix.go (non-Windows) and memory_limiter_windows.go (Windows)
 
 // removeCgroup removes a cgroup
 func (ml *MemoryLimiter) removeCgroup(cgroupPath string) error {
