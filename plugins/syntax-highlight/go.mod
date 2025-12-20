@@ -1,6 +1,6 @@
 module github.com/fredcamaral/slicli/plugins/syntax-highlight
 
-go 1.24.4
+go 1.25.5
 
 require (
 	github.com/alecthomas/chroma/v2 v2.18.0
