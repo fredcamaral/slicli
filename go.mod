@@ -17,7 +17,7 @@ require (
 	github.com/yuin/goldmark v1.7.13
 	golang.org/x/image v0.34.0
 	golang.org/x/net v0.48.0
-	golang.org/x/text v0.32.0
+	golang.org/x/text v0.35.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
